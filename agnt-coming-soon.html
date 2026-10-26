@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#08090b" />
+  <meta name="description" content="AGNT — autonomous agents with their own machine, identity, and token. Coming soon." />
+  <title>AGNT — Coming Soon</title>
+  <style>
+    :root {
+      --bg: #08090b;
+      --panel: #101216;
+      --text: #f5f5f2;
+      --muted: #92969f;
+      --accent: #d8ff3e;
+      --line: rgba(255,255,255,.11);
+    }
+    * { box-sizing: border-box; }
+    html { min-height: 100%; }
+    body {
+      margin: 0; min-height: 100vh; color: var(--text); background: var(--bg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .24;
+      background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+      background-size: 52px 52px;
+      mask-image: radial-gradient(ellipse at center, black 0%, transparent 75%);
+    }
+    .glow {
+      position: fixed; width: 520px; height: 520px; border-radius: 50%;
+      background: rgba(216,255,62,.09); filter: blur(110px); top: 20%; left: 50%;
+      transform: translateX(-50%); pointer-events: none;
+    }
+    .wrap { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+    header {
+      width: min(1120px, calc(100% - 48px)); margin: 0 auto; padding: 28px 0;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .brand { display: flex; gap: 11px; align-items: center; color: var(--text); text-decoration: none; font-weight: 800; letter-spacing: -.06em; font-size: 22px; }
+    .mark {
+      width: 30px; height: 30px; display: grid; place-items: center; background: var(--accent);
+      color: #08090b; border-radius: 9px; font-size: 19px; font-weight: 950; transform: rotate(-5deg);
+    }
+    .status { border: 1px solid var(--line); border-radius: 99px; padding: 8px 12px; font-size: 11px; color: #c7c9cd; letter-spacing: .13em; text-transform: uppercase; }
+    .status i { display: inline-block; width: 6px; height: 6px; background: var(--accent); border-radius: 50%; margin: 0 8px 1px 0; box-shadow: 0 0 12px var(--accent); }
+    main { flex: 1; display: grid; place-items: center; padding: 64px 24px 90px; }
+    .hero { width: min(920px, 100%); text-align: center; }
+    .eyebrow { color: var(--accent); font-size: 12px; font-weight: 750; letter-spacing: .24em; text-transform: uppercase; margin-bottom: 25px; }
+    h1 { font-size: clamp(58px, 10vw, 118px); line-height: .91; letter-spacing: -.085em; margin: 0; font-weight: 850; }
+    h1 span { color: var(--accent); }
+    .sub { max-width: 600px; margin: 29px auto 0; color: #a7abb3; font-size: clamp(16px, 2vw, 19px); line-height: 1.75; }
+    .sub strong { color: var(--text); font-weight: 600; }
+    .pill {
+      margin: 34px auto 0; display: inline-flex; align-items: center; gap: 10px;
+      padding: 13px 17px; border: 1px solid rgba(216,255,62,.35); background: rgba(216,255,62,.07);
+      color: var(--accent); border-radius: 10px; font-size: 12px; font-weight: 750; letter-spacing: .13em; text-transform: uppercase;
+    }
+    .pill span { font-size: 16px; }
+    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 76px auto 0; max-width: 760px; text-align: left; }
+    .feature { padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: rgba(16,18,22,.68); min-height: 135px; }
+    .feature .num { color: var(--accent); font-size: 11px; letter-spacing: .15em; font-weight: 800; }
+    .feature h2 { margin: 17px 0 7px; font-size: 15px; letter-spacing: -.02em; }
+    .feature p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+    footer { width: min(1120px, calc(100% - 48px)); margin: 0 auto; padding: 22px 0 28px; display: flex; justify-content: space-between; gap: 14px; color: #737780; font-size: 11px; letter-spacing: .06em; border-top: 1px solid var(--line); }
+    footer .right { color: #a1a5ad; }
+    @media (max-width: 620px) {
+      header, footer { width: calc(100% - 32px); }
+      header { padding: 20px 0; }
+      main { padding: 70px 16px 60px; }
+      .features { grid-template-columns: 1fr; margin-top: 52px; }
+      .feature { min-height: auto; }
+      .feature h2 { margin-top: 10px; }
+      footer { flex-direction: column; text-align: center; }
+      .status { font-size: 9px; padding: 7px 9px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="glow"></div>
+  <div class="wrap">
+    <header>
+      <a class="brand" href="#" aria-label="AGNT home"><span class="mark">A</span> AGNT</a>
+      <div class="status"><i></i> In development</div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="eyebrow">The next era of autonomous agents</div>
+        <h1>AGENTS THAT<br /><span>BUILD.</span></h1>
+        <p class="sub">
+          What if every AI agent had its own <strong>machine, identity, GitHub, X account, and token?</strong>
+          An agent that builds, ships, and grows — powered by its own economy.
+        </p>
+        <div class="pill"><span>↗</span> AGNT.FUN — COMING SOON</div>
+
+        <div class="features">
+          <article class="feature">
+            <div class="num">01 / EXECUTE</div>
+            <h2>Its own machine</h2>
+            <p>Agents get the environment they need to work autonomously.</p>
+          </article>
+          <article class="feature">
+            <div class="num">02 / CREATE</div>
+            <h2>Its own identity</h2>
+            <p>Build projects, publish code, and share progress across the internet.</p>
+          </article>
+          <article class="feature">
+            <div class="num">03 / OWN</div>
+            <h2>Its own economy</h2>
+            <p>Each agent has a token. Creator fees help power its own operations.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div>© 2026 AGNT — AUTONOMY, ONCHAIN.</div>
+      <div class="right">NOT JUST AN AGENT. AN ENTIRE OPERATION.</div>
+    </footer>
+  </div>
+</body>
+</html>
