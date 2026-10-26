@@ -1,125 +1,265 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#08090b" />
-  <meta name="description" content="AGNT — autonomous agents with their own machine, identity, and token. Coming soon." />
-  <title>AGNT — Coming Soon</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#dedede">
+  <meta name="description" content="AGNET is coming soon. Follow us on X for updates.">
+  <title>AGNET — Coming Soon</title>
   <style>
     :root {
-      --bg: #08090b;
-      --panel: #101216;
-      --text: #f5f5f2;
-      --muted: #92969f;
-      --accent: #d8ff3e;
-      --line: rgba(255,255,255,.11);
+      --paper: #dedede;
+      --ink: #050505;
+      --card: #050505;
+      --page-pad: clamp(26px, 5.1vw, 80px);
     }
     * { box-sizing: border-box; }
-    html { min-height: 100%; }
+    html, body { width: 100%; min-height: 100%; margin: 0; }
     body {
-      margin: 0; min-height: 100vh; color: var(--text); background: var(--bg);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      overflow-x: hidden;
+      overflow: hidden;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: Inter, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
     }
-    body::before {
-      content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .24;
-      background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px),
-                        linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
-      background-size: 52px 52px;
-      mask-image: radial-gradient(ellipse at center, black 0%, transparent 75%);
+    .page {
+      position: relative;
+      min-height: 100svh;
+      width: 100%;
+      isolation: isolate;
+      overflow: hidden;
     }
-    .glow {
-      position: fixed; width: 520px; height: 520px; border-radius: 50%;
-      background: rgba(216,255,62,.09); filter: blur(110px); top: 20%; left: 50%;
-      transform: translateX(-50%); pointer-events: none;
+    .topbar {
+      position: absolute;
+      top: clamp(25px, 4.4vh, 48px);
+      right: var(--page-pad);
+      z-index: 5;
     }
-    .wrap { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
-    header {
-      width: min(1120px, calc(100% - 48px)); margin: 0 auto; padding: 28px 0;
-      display: flex; align-items: center; justify-content: space-between;
+    .social {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      color: var(--ink);
+      border-radius: 50%;
+      transition: transform .2s ease, background .2s ease;
     }
-    .brand { display: flex; gap: 11px; align-items: center; color: var(--text); text-decoration: none; font-weight: 800; letter-spacing: -.06em; font-size: 22px; }
-    .mark {
-      width: 30px; height: 30px; display: grid; place-items: center; background: var(--accent);
-      color: #08090b; border-radius: 9px; font-size: 19px; font-weight: 950; transform: rotate(-5deg);
+    .social:hover { transform: rotate(-8deg) scale(1.08); background: rgba(0,0,0,.06); }
+    .social svg { width: 21px; height: 21px; display: block; }
+    .hero {
+      position: absolute;
+      left: var(--page-pad);
+      bottom: clamp(52px, 7.2vh, 76px);
+      width: min(650px, calc(100% - var(--page-pad) * 2));
     }
-    .status { border: 1px solid var(--line); border-radius: 99px; padding: 8px 12px; font-size: 11px; color: #c7c9cd; letter-spacing: .13em; text-transform: uppercase; }
-    .status i { display: inline-block; width: 6px; height: 6px; background: var(--accent); border-radius: 50%; margin: 0 8px 1px 0; box-shadow: 0 0 12px var(--accent); }
-    main { flex: 1; display: grid; place-items: center; padding: 64px 24px 90px; }
-    .hero { width: min(920px, 100%); text-align: center; }
-    .eyebrow { color: var(--accent); font-size: 12px; font-weight: 750; letter-spacing: .24em; text-transform: uppercase; margin-bottom: 25px; }
-    h1 { font-size: clamp(58px, 10vw, 118px); line-height: .91; letter-spacing: -.085em; margin: 0; font-weight: 850; }
-    h1 span { color: var(--accent); }
-    .sub { max-width: 600px; margin: 29px auto 0; color: #a7abb3; font-size: clamp(16px, 2vw, 19px); line-height: 1.75; }
-    .sub strong { color: var(--text); font-weight: 600; }
-    .pill {
-      margin: 34px auto 0; display: inline-flex; align-items: center; gap: 10px;
-      padding: 13px 17px; border: 1px solid rgba(216,255,62,.35); background: rgba(216,255,62,.07);
-      color: var(--accent); border-radius: 10px; font-size: 12px; font-weight: 750; letter-spacing: .13em; text-transform: uppercase;
+    .headline {
+      margin: 0;
+      font-size: clamp(58px, 5.2vw, 76px);
+      line-height: 1.02;
+      letter-spacing: -.058em;
+      font-weight: 780;
+      max-width: 510px;
     }
-    .pill span { font-size: 16px; }
-    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 76px auto 0; max-width: 760px; text-align: left; }
-    .feature { padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: rgba(16,18,22,.68); min-height: 135px; }
-    .feature .num { color: var(--accent); font-size: 11px; letter-spacing: .15em; font-weight: 800; }
-    .feature h2 { margin: 17px 0 7px; font-size: 15px; letter-spacing: -.02em; }
-    .feature p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
-    footer { width: min(1120px, calc(100% - 48px)); margin: 0 auto; padding: 22px 0 28px; display: flex; justify-content: space-between; gap: 14px; color: #737780; font-size: 11px; letter-spacing: .06em; border-top: 1px solid var(--line); }
-    footer .right { color: #a1a5ad; }
-    @media (max-width: 620px) {
-      header, footer { width: calc(100% - 32px); }
-      header { padding: 20px 0; }
-      main { padding: 70px 16px 60px; }
-      .features { grid-template-columns: 1fr; margin-top: 52px; }
-      .feature { min-height: auto; }
-      .feature h2 { margin-top: 10px; }
-      footer { flex-direction: column; text-align: center; }
-      .status { font-size: 9px; padding: 7px 9px; }
+    .timer {
+      display: flex;
+      align-items: flex-start;
+      gap: clamp(10px, 1.25vw, 19px);
+      margin-top: 34px;
+    }
+    .unit { min-width: 70px; text-align: center; }
+    .number {
+      display: grid;
+      place-items: center;
+      width: 70px;
+      height: 58px;
+      border-radius: 8px;
+      background: var(--card);
+      color: #fff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 26px;
+      line-height: 1;
+      letter-spacing: -.055em;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+    .label {
+      display: block;
+      margin-top: 9px;
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: .015em;
+      text-transform: uppercase;
+    }
+    .prompt {
+      margin: 38px 0 0;
+      font-size: 15px;
+      line-height: 1.5;
+      font-weight: 550;
+      letter-spacing: -.015em;
+    }
+    .satellites {
+      position: absolute;
+      top: 55.5%;
+      left: 30.1%;
+      width: clamp(110px, 13vw, 190px);
+      height: auto;
+      overflow: visible;
+      pointer-events: none;
+      animation: float 5s ease-in-out infinite;
+      transform-origin: center;
+    }
+    .satellite-two {
+      position: absolute;
+      top: 56.5%;
+      left: 35.3%;
+      width: clamp(48px, 5vw, 73px);
+      height: auto;
+      pointer-events: none;
+      animation: float2 4s ease-in-out infinite;
+    }
+    .cursor-glow {
+      position: absolute;
+      left: 50%;
+      top: 48%;
+      width: 170px;
+      height: 170px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,255,255,.24), rgba(255,255,255,0) 68%);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .25s ease;
+      z-index: -1;
+    }
+    .page.has-pointer .cursor-glow { opacity: 1; }
+    @keyframes float {
+      0%, 100% { transform: translateY(0) rotate(-3deg); }
+      50% { transform: translateY(-10px) rotate(3deg); }
+    }
+    @keyframes float2 {
+      0%, 100% { transform: translateY(0) rotate(4deg); }
+      50% { transform: translateY(8px) rotate(-5deg); }
+    }
+    @media (max-width: 700px) {
+      body { overflow: auto; }
+      .page { min-height: 100svh; }
+      .hero { bottom: max(46px, env(safe-area-inset-bottom)); }
+      .headline { font-size: clamp(56px, 13.5vw, 78px); }
+      .timer { gap: 9px; margin-top: 27px; }
+      .unit { min-width: 0; width: 64px; }
+      .number { width: 64px; height: 56px; font-size: 23px; border-radius: 7px; }
+      .prompt { margin-top: 30px; font-size: 14px; }
+      .satellites { top: 44%; left: 42%; width: 120px; }
+      .satellite-two { top: 45%; left: 54%; width: 54px; }
+    }
+    @media (max-height: 680px) and (min-width: 701px) {
+      .hero { bottom: 34px; }
+      .headline { font-size: clamp(52px, 5vw, 66px); }
+      .timer { margin-top: 23px; }
+      .prompt { margin-top: 25px; }
+      .satellites, .satellite-two { top: 39%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
     }
   </style>
 </head>
 <body>
-  <div class="glow"></div>
-  <div class="wrap">
-    <header>
-      <a class="brand" href="#" aria-label="AGNT home"><span class="mark">A</span> AGNT</a>
-      <div class="status"><i></i> In development</div>
+  <div class="page" id="page">
+    <div class="cursor-glow" id="cursorGlow" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <a class="social" href="https://x.com/Agnetfun" target="_blank" rel="noopener noreferrer"
+         aria-label="Follow AGNET on X" title="Follow us on X">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+          <path d="M18.9 2H22l-6.78 7.75L23.2 22h-6.25l-4.9-7.42L5.56 22H2.42l7.25-8.29L1.8 2h6.41l4.43 6.77L18.9 2Zm-1.1 17.9h1.73L7.27 4H5.42L17.8 19.9Z"/>
+        </svg>
+      </a>
     </header>
 
-    <main>
-      <section class="hero">
-        <div class="eyebrow">The next era of autonomous agents</div>
-        <h1>AGENTS THAT<br /><span>BUILD.</span></h1>
-        <p class="sub">
-          What if every AI agent had its own <strong>machine, identity, GitHub, X account, and token?</strong>
-          An agent that builds, ships, and grows — powered by its own economy.
-        </p>
-        <div class="pill"><span>↗</span> AGNT.FUN — COMING SOON</div>
+    <!-- Small orbiting satellite illustrations, drawn in SVG so no image files are needed. -->
+    <svg class="satellites" viewBox="0 0 180 100" role="presentation" aria-hidden="true">
+      <g fill="none" stroke="#050505" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M65 47 89 33 102 43 77 59Z" stroke-dasharray="2 3"/>
+        <path d="M77 59 66 76 54 67 65 47Z" stroke-dasharray="2 3"/>
+        <path d="M89 33 94 17 111 10 119 25 102 43Z" stroke-dasharray="2 3"/>
+        <path d="M54 67 37 74 25 61 34 45 49 43 65 47Z" stroke-dasharray="2 3"/>
+        <path d="M43 49 58 62M68 51 88 39M75 59 83 76M100 44 114 52" stroke-dasharray="2 3"/>
+        <path d="M34 45 27 37M111 10 113 3M83 76 78 85M119 25 128 28"/>
+        <circle cx="64" cy="48" r="3" fill="#050505"/>
+        <circle cx="77" cy="59" r="3" fill="#050505"/>
+      </g>
+      <g fill="#050505">
+        <rect x="10" y="54" width="4" height="4"/><rect x="17" y="62" width="3" height="3"/>
+        <rect x="125" y="14" width="4" height="4"/><rect x="132" y="19" width="3" height="3"/>
+        <rect x="115" y="65" width="3" height="3"/><rect x="120" y="71" width="4" height="4"/>
+      </g>
+    </svg>
+    <svg class="satellite-two" viewBox="0 0 80 80" role="presentation" aria-hidden="true">
+      <g fill="#050505" stroke="#050505" stroke-linejoin="round">
+        <path d="M31 12 44 9 53 18 50 31 40 39 28 31 25 20Z"/>
+        <path d="M37 39 49 29 66 43 58 54Z"/>
+        <path d="M24 25 14 19 11 25 22 32Z"/>
+        <path d="M40 40 28 52 35 60 47 48Z"/>
+        <path d="M51 34 58 27 70 38 66 47Z"/>
+      </g>
+      <g fill="#dedede">
+        <rect x="32" y="17" width="3" height="3"/><rect x="42" y="22" width="3" height="3"/>
+        <rect x="36" y="29" width="3" height="3"/><rect x="51" y="41" width="3" height="3"/>
+        <rect x="58" y="44" width="3" height="3"/>
+      </g>
+      <path d="M16 12 7 8M17 59 8 65M64 58 70 66" stroke="#050505" stroke-width="2" stroke-dasharray="2 3"/>
+    </svg>
 
-        <div class="features">
-          <article class="feature">
-            <div class="num">01 / EXECUTE</div>
-            <h2>Its own machine</h2>
-            <p>Agents get the environment they need to work autonomously.</p>
-          </article>
-          <article class="feature">
-            <div class="num">02 / CREATE</div>
-            <h2>Its own identity</h2>
-            <p>Build projects, publish code, and share progress across the internet.</p>
-          </article>
-          <article class="feature">
-            <div class="num">03 / OWN</div>
-            <h2>Its own economy</h2>
-            <p>Each agent has a token. Creator fees help power its own operations.</p>
-          </article>
-        </div>
+    <main class="hero">
+      <h1 class="headline">Coming<br>soon!</h1>
+
+      <section class="timer" aria-label="Countdown to launch" role="timer">
+        <div class="unit"><div class="number" id="days">07</div><span class="label">Days</span></div>
+        <div class="unit"><div class="number" id="hours">00</div><span class="label">Hours</span></div>
+        <div class="unit"><div class="number" id="minutes">00</div><span class="label">Minutes</span></div>
+        <div class="unit"><div class="number" id="seconds">00</div><span class="label">Seconds</span></div>
       </section>
-    </main>
 
-    <footer>
-      <div>© 2026 AGNT — AUTONOMY, ONCHAIN.</div>
-      <div class="right">NOT JUST AN AGENT. AN ENTIRE OPERATION.</div>
-    </footer>
+      <p class="prompt">Wiggle your mouse around while you wait.</p>
+    </main>
   </div>
+
+  <script>
+    // Shared launch deadline: seven days from the time this page was generated.
+    // Edit LAUNCH_AT below to change the date for every visitor.
+    const LAUNCH_AT = new Date("2026-11-02T21:04:00+05:30").getTime();
+    const fields = {
+      days: document.getElementById("days"),
+      hours: document.getElementById("hours"),
+      minutes: document.getElementById("minutes"),
+      seconds: document.getElementById("seconds")
+    };
+    const pad = (value) => String(value).padStart(2, "0");
+
+    function updateCountdown() {
+      const remaining = Math.max(0, LAUNCH_AT - Date.now());
+      const totalSeconds = Math.floor(remaining / 1000);
+      fields.days.textContent = pad(Math.floor(totalSeconds / 86400));
+      fields.hours.textContent = pad(Math.floor((totalSeconds % 86400) / 3600));
+      fields.minutes.textContent = pad(Math.floor((totalSeconds % 3600) / 60));
+      fields.seconds.textContent = pad(totalSeconds % 60);
+      if (remaining <= 0) document.querySelector(".prompt").textContent = "It's time. Stay tuned on X.";
+    }
+    updateCountdown();
+    setInterval(updateCountdown, 1000);
+
+    // A subtle glow follows mouse movement, matching the playful reference page.
+    const page = document.getElementById("page");
+    const glow = document.getElementById("cursorGlow");
+    window.addEventListener("pointermove", (event) => {
+      glow.style.left = event.clientX + "px";
+      glow.style.top = event.clientY + "px";
+      page.classList.add("has-pointer");
+    }, { passive: true });
+    window.addEventListener("pointerleave", () => page.classList.remove("has-pointer"));
+  </script>
 </body>
 </html>
