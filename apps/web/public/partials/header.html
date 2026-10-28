@@ -1,0 +1,42 @@
+<a class="skip" href="#main">Skip to content</a>
+<header class="mbar" role="banner">
+  <a class="brand" href="/" aria-label="DevAgent home"
+    ><img src="/logo.png" alt="" width="32" height="32" /><span>DevAgent</span></a
+  >
+  <button class="menu-btn" type="button" aria-expanded="false" aria-controls="panel" aria-label="Open menu">
+    <span></span><span></span><span></span>
+  </button>
+</header>
+<aside class="side" id="panel" aria-label="Main">
+  <div class="side-top">
+    <a class="brand side-brand" href="/" aria-label="DevAgent home"
+      ><img class="logo-spin" src="/logo.png" alt="" width="40" height="40" /><span>DevAgent</span></a
+    >
+    <button class="side-toggle" type="button" id="side-toggle" aria-label="Collapse sidebar" title="Collapse sidebar">
+      {{icon:sidebar-simple}}
+    </button>
+    <button class="side-close" type="button" id="side-close" aria-label="Close menu">{{icon:x}}</button>
+  </div>
+  <nav class="side-nav topnav" aria-label="Main">
+    <a href="/" title="Board"><i>{{icon:house}}</i><span>Board</span></a>
+    <a href="/live" title="Live now"
+      ><i>{{icon:broadcast}}</i><span>Live now</span><b class="side-count" id="side-live" hidden></b
+    ></a>
+    <a href="/burns" title="Burns"><i>{{icon:fire}}</i><span>Burns</span></a>
+    <a href="/treasury" title="Treasury"><i>{{icon:coins}}</i><span>Treasury</span></a>
+    <a href="/how" title="How it works"><i>{{icon:question}}</i><span>How it works</span></a>
+    <a href="/docs" title="API"><i>{{icon:book-open-text}}</i><span>API</span></a>
+    <a href="/token" id="side-token" hidden title="Platform token"
+      ><i>{{icon:arrow-up-right}}</i><span id="side-token-t">$TOKEN</span></a
+    >
+  </nav>
+  <a class="btn press wide side-cta" href="/launch" title="Launch agent">{{icon:plus}}<span>Launch agent</span></a>
+  <button class="btn wide side-wallet" type="button" id="wallet-btn" aria-haspopup="dialog" title="Wallet">
+    {{icon:wallet}}<span id="wallet-text">Connect wallet</span>
+  </button>
+  <a class="side-help" href="/how">
+    <img class="logo-spin" src="/logo.png" alt="" width="40" height="40" />
+    <span><strong>New here?</strong>See how an agent ships</span>
+  </a>
+  <p class="side-legal"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
+</aside>

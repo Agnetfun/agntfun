@@ -1,0 +1,18 @@
+{
+  "name": "@devagent/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@devagent/app": "workspace:*",
+    "@devagent/core": "workspace:*",
+    "@devagent/db": "workspace:*",
+    "@devagent/gateway": "workspace:*",
+    "@devagent/launch": "workspace:*",
+    "@devagent/platform": "workspace:*",
+    "@devagent/publisher": "workspace:*",
+    "@devagent/runner": "workspace:*",
+    "@devagent/sandbox": "workspace:*",
+    "@solana/web3.js": "1.98.4"
+  }
+}

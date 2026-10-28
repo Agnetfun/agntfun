@@ -1,0 +1,48 @@
+{
+  "name": "devagent",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "predev": "node scripts/ensure-env.mjs",
+    "dev": "tsx --env-file=.env apps/orchestrator/src/main.ts",
+    "agent:run": "node scripts/ensure-env.mjs && tsx --env-file=.env apps/cli/src/main.ts agent:run",
+    "boot": "pnpm predev && tsx --env-file=.env apps/orchestrator/src/main.ts --once",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "secret-scan": "tsx scripts/secret-scan.ts",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm secret-scan",
+    "prepare": "git config core.hooksPath .githooks || true",
+    "redteam": "vitest run packages/gateway/test/redteam.test.ts",
+    "treasury": "node scripts/ensure-env.mjs && tsx --env-file=.env apps/cli/src/treasury.ts",
+    "launch": "node scripts/ensure-env.mjs && tsx --env-file=.env apps/cli/src/launch.ts",
+    "moderate": "node scripts/ensure-env.mjs && tsx --env-file=.env apps/cli/src/moderate.ts",
+    "web": "node scripts/ensure-env.mjs && tsx --env-file=.env apps/web/src/main.ts",
+    "local": "node scripts/ensure-env.mjs && node scripts/local.mjs",
+    "wallet": "node scripts/ensure-env.mjs && tsx --env-file=.env apps/cli/src/wallet.ts",
+    "creds": "node scripts/ensure-env.mjs && tsx --env-file=.env apps/cli/src/creds.ts",
+    "demo": "tsx apps/web/test/demo.ts",
+    "e2e": "E2E=1 vitest run apps/web/test/e2e.test.ts --testTimeout=30000",
+    "soak": "SOAK_SECONDS=3600 node --expose-gc node_modules/vitest/vitest.mjs run apps/web/test/soak.test.ts"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.6.5",
+    "eslint": "10.13.0",
+    "prettier": "3.9.10",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.0",
+    "vitest": "5.0.5"
+  }
+}

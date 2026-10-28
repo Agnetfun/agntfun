@@ -1,0 +1,2 @@
+#!/bin/sh
+exec pnpm -s secret-scan --staged

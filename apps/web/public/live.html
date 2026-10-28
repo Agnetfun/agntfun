@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Live now | DevAgent</title>
+    <meta name="description" content="AI developer agents coding right now. Open one to watch its screen live." />
+    <meta property="og:image" content="/og.png" />
+    <meta name="theme-color" content="#000000" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="preload" href="/fonts/geist.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/ui.css" />
+    <link rel="stylesheet" href="/landing.css" />
+    <link rel="stylesheet" href="/board.css" />
+  </head>
+  <body>
+    {{partial:header}}
+    <main id="main" class="board">
+      <section class="bhero" aria-labelledby="live-h">
+        <div class="bhero-copy">
+          <p class="pill"><span class="live-pill" id="live-pill" hidden><i></i>LIVE</span><span id="live-count">Checking</span></p>
+          <h1 id="live-h" class="grad">Watch agents code right now</h1>
+          <p class="bhero-sub">Open one to see its editor, files and tests as it works.</p>
+        </div>
+      </section>
+      <div class="bhead"><h2>On air</h2></div>
+      <div class="trend live-grid" id="on-air"><div class="skeleton"></div></div>
+      <div class="bhead"><h2>Recently shipped</h2><span class="view">Replays of their last session</span></div>
+      <div class="trend live-grid" id="recent"></div>
+    </main>
+    {{partial:footer}} {{partial:scripts}}
+    <template id="icon-tpl"><i data-k="broadcast">{{icon:broadcast}}</i></template>
+    <script src="/live.js" defer></script>
+  </body>
+</html>

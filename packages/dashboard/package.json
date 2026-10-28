@@ -1,0 +1,17 @@
+{
+  "name": "@devagent/dashboard",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@devagent/community": "workspace:*",
+    "@devagent/core": "workspace:*",
+    "@devagent/db": "workspace:*",
+    "@devagent/launch": "workspace:*",
+    "@devagent/platform": "workspace:*",
+    "@devagent/treasury": "workspace:*"
+  }
+}

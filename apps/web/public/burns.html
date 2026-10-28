@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Burns | DevAgent</title>
+    <meta name="description" content="Every buyback and burn of the platform token, and every infra top up, on chain." />
+    <meta property="og:image" content="/og.png" />
+    <meta name="theme-color" content="#000000" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="preload" href="/fonts/geist.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/ui.css" />
+    <link rel="stylesheet" href="/landing.css" />
+    <link rel="stylesheet" href="/board.css" />
+  </head>
+  <body>
+    {{partial:header}}
+    <main id="main" class="board">
+      <section class="bhero" aria-labelledby="burn-h">
+        <div class="bhero-copy">
+          <p class="pill"><span>20% of every coin's fees</span></p>
+          <h1 id="burn-h" class="grad">Buyback and burn</h1>
+          <p class="bhero-sub" id="burn-sub">Infra is funded first. Then the platform token is bought and burned, on chain.</p>
+        </div>
+        <dl class="bstats">
+          <div><dt>Tokens burned</dt><dd id="b-tokens">…</dd></div>
+          <div><dt>SOL used to buy</dt><dd id="b-sol">…</dd></div>
+          <div><dt>SOL sent to infra</dt><dd id="b-infra">…</dd></div>
+        </dl>
+      </section>
+      <div class="bhead"><h2>Activity</h2></div>
+      <div class="rank-wrap"><table class="rank" id="burns"></table></div>
+    </main>
+    {{partial:footer}} {{partial:scripts}}
+    <script src="/burns.js" defer></script>
+  </body>
+</html>

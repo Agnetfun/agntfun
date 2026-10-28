@@ -1,0 +1,18 @@
+node_modules/
+dist/
+coverage/
+data/
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+keypair*.json
+id.json
+.DS_Store
+# old duplicate copy of the project and its archive (kept on disk, not tracked)
+/devagent/
+/devagent-update.tar.gz

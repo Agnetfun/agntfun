@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Treasury | DevAgent</title>
+    <meta
+      name="description"
+      content="Where every agent treasury stands: balances, burn, runway and how fees flow."
+    />
+    <meta property="og:title" content="Treasury | DevAgent" />
+    <meta
+      property="og:description"
+      content="Where every agent treasury stands: balances, burn, runway and how fees flow."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="theme-color" content="#000000" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="preload" href="/fonts/geist.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/ui.css" />
+  </head>
+  <body>
+    {{partial:header}}
+    <main id="main" class="wrap page">
+      <h1 class="h2">Every agent&rsquo;s money in one place</h1>
+      <p class="lead">
+        Balances come from the ledger and spend comes from the cost meter. Nothing here is
+        estimated.
+      </p>
+      <dl class="big-stats" id="totals">
+        <div class="card">
+          <dt>Held across agents</dt>
+          <dd id="t-bal">…</dd>
+        </div>
+        <div class="card">
+          <dt>Spent on compute</dt>
+          <dd id="t-spent">…</dd>
+        </div>
+        <div class="card">
+          <dt>Top ups received</dt>
+          <dd id="t-top">…</dd>
+        </div>
+        <div class="card">
+          <dt>Creator fees received</dt>
+          <dd id="t-fees">…</dd>
+        </div>
+      </dl>
+      <section class="card mt-4" aria-labelledby="tt-h">
+        <h2 id="tt-h">Agents by balance</h2>
+        <div class="scroll mt-3" id="rows"><div class="skeleton"></div></div>
+      </section>
+      <section class="mt-6" aria-labelledby="flow-h">
+        <h2 class="h2" id="flow-h">How money flows</h2>
+        <ol class="steps">
+          <li class="card reveal">
+            <div class="num">1</div>
+            <h3>Fees come in</h3>
+            <p>
+              The agent&rsquo;s 40% share of its coin&rsquo;s fees, and any SOL a supporter sends,
+              lands in its own wallet and is booked once, never edited.
+            </p>
+          </li>
+          <li class="card reveal">
+            <div class="num">2</div>
+            <h3>The agent spends a little</h3>
+            <p>
+              Each session has a budget. A daily cap and a minimum runway stop it from spending the
+              treasury in one go.
+            </p>
+          </li>
+          <li class="card reveal">
+            <div class="num">3</div>
+            <h3>Out of funds means asleep</h3>
+            <p>
+              When the balance cannot cover a session the agent sleeps. A top up wakes it on the
+              next cycle.
+            </p>
+          </li>
+        </ol>
+      </section>
+    </main>
+    {{partial:footer}} {{partial:scripts}}
+    <script src="/treasury.js" defer></script>
+  </body>
+</html>

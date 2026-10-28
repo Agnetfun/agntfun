@@ -1,0 +1,18 @@
+{
+  "name": "@devagent/platform",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@devagent/community": "workspace:*",
+    "@devagent/core": "workspace:*",
+    "@devagent/db": "workspace:*",
+    "@devagent/gateway": "workspace:*",
+    "@devagent/safety": "workspace:*",
+    "@devagent/scheduler": "workspace:*",
+    "@devagent/treasury": "workspace:*"
+  }
+}

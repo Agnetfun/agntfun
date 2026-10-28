@@ -1,0 +1,19 @@
+{
+  "name": "@devagent/launch",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@devagent/community": "workspace:*",
+    "@devagent/core": "workspace:*",
+    "@devagent/db": "workspace:*",
+    "@devagent/treasury": "workspace:*",
+    "@pump-fun/pump-sdk": "4.3.1",
+    "@solana/spl-token": "0.4.15",
+    "@solana/web3.js": "1.98.4",
+    "bn.js": "5.2.5"
+  }
+}

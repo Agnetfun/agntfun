@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-27T12:00:00Z",
+  "title": "Design System: DevAgent",
+  "extensions": {
+    "colorMeta": {
+      "void": { "role": "neutral", "displayName": "Void", "tonalRamp": ["#000000", "#0a0a0a", "#121212", "#181818", "#1f1f1f", "#272727", "#313131", "#3a3a3a"] },
+      "graphite": { "role": "neutral", "displayName": "Graphite", "tonalRamp": ["#0f0f0f", "#141414", "#181818", "#1f1f1f", "#272727", "#313131", "#4a4a4a", "#6b6b6b"] },
+      "graphite-raised": { "role": "neutral", "displayName": "Raised Graphite", "tonalRamp": ["#141414", "#181818", "#1f1f1f", "#272727", "#313131", "#4a4a4a", "#6b6b6b", "#9b9b9b"] },
+      "hairline": { "role": "neutral", "displayName": "Hairline", "tonalRamp": ["#181818", "#1f1f1f", "#272727", "#313131", "#4a4a4a", "#6b6b6b", "#9b9b9b", "#c4c4c4"] },
+      "hairline-strong": { "role": "neutral", "displayName": "Strong Hairline", "tonalRamp": ["#1f1f1f", "#272727", "#313131", "#4a4a4a", "#6b6b6b", "#9b9b9b", "#c4c4c4", "#e6e6e6"] },
+      "ink": { "role": "neutral", "displayName": "Ink", "tonalRamp": ["#313131", "#4a4a4a", "#6b6b6b", "#9b9b9b", "#c4c4c4", "#e6e6e6", "#f5f5f5", "#ffffff"] },
+      "ash": { "role": "neutral", "displayName": "Ash", "tonalRamp": ["#272727", "#3a3a3a", "#4f4f4f", "#666666", "#7f7f7f", "#9b9b9b", "#b8b8b8", "#d6d6d6"] },
+      "merge-green": { "role": "primary", "displayName": "Merge Green", "tonalRamp": ["#052e16", "#14532d", "#166534", "#15803d", "#16a34a", "#22c55e", "#4ade80", "#bbf7d0"] },
+      "merge-green-bright": { "role": "primary", "displayName": "Merge Green, bright (text on black)", "tonalRamp": ["#14532d", "#166534", "#15803d", "#16a34a", "#22c55e", "#4ade80", "#86efac", "#dcfce7"] },
+      "loss-red": { "role": "tertiary", "displayName": "Loss Red", "tonalRamp": ["#450a0a", "#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#f87171", "#fecaca"] }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "The single hero statement on How it works." },
+      "headline": { "displayName": "Headline", "purpose": "Page heroes and wide screen section heads." },
+      "title-lg": { "displayName": "Title large", "purpose": "Phone section heads and big stat values." },
+      "title": { "displayName": "Title", "purpose": "Board section heads and stat values." },
+      "subtitle": { "displayName": "Subtitle", "purpose": "Card and step titles, the primary key label." },
+      "body": { "displayName": "Body", "purpose": "All running copy; never smaller for sentences." },
+      "small": { "displayName": "Small", "purpose": "Helper notes, table cells, secondary lines." },
+      "label": { "displayName": "Label", "purpose": "Stat labels, chips, meta lines." },
+      "data": { "displayName": "Data", "purpose": "Prices, SOL amounts, tickers, counts and code, with tabular figures." }
+    },
+    "shadows": [
+      { "name": "pressed-key", "value": "0 4px 0 #9b9b9b", "purpose": "The primary button only; hover 0 6px 0, active 0 2px 0." }
+    ],
+    "motion": [
+      { "name": "ease-base", "value": "cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Every UI transition: hovers, menus, tabs, panel slide." },
+      { "name": "duration-ui", "value": "300ms", "purpose": "Color and border changes on hover." },
+      { "name": "duration-move", "value": "400ms", "purpose": "Transforms: lifts, menu slide, card rise." },
+      { "name": "duration-reveal", "value": "500ms", "purpose": "Ceiling for reveals, count ups, chart and sparkline drawing, price flashes." },
+      { "name": "pulse-live", "value": "1.8s infinite", "purpose": "The LIVE dot ring; ambient loop, exempt from the ceiling." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" },
+      { "name": "wide", "value": "1700px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Key",
+      "kind": "button",
+      "refersTo": "button-press",
+      "description": "The one primary action on a screen: a white key with a pressed edge.",
+      "html": "<button class=\"ds-key\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 256 256\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z\"/></svg>Launch agent</button>",
+      "css": ".ds-key{display:inline-flex;align-items:center;gap:8px;padding:16px 48px;border:1px solid #fff;border-radius:12px;background:#fff;color:#000;font:600 20px/28px Geist,ui-sans-serif,system-ui,sans-serif;box-shadow:0 4px 0 #9b9b9b;cursor:pointer;transition:transform 400ms cubic-bezier(0.22,1,0.36,1),box-shadow 400ms cubic-bezier(0.22,1,0.36,1)}.ds-key:hover{transform:translateY(-2px);box-shadow:0 6px 0 #9b9b9b}.ds-key:active{transform:translateY(2px);box-shadow:0 2px 0 #9b9b9b}.ds-key:focus-visible{outline:2px solid #fff;outline-offset:2px}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Quiet actions next to the key.",
+      "html": "<button class=\"ds-btn\">See who is coding</button>",
+      "css": ".ds-btn{padding:8px 24px;border:1px solid #313131;border-radius:8px;background:#181818;color:#fff;font:600 16px/24px Geist,ui-sans-serif,system-ui,sans-serif;cursor:pointer;transition:background-color 300ms cubic-bezier(0.22,1,0.36,1),border-color 300ms cubic-bezier(0.22,1,0.36,1)}.ds-btn:hover{background:#1f1f1f;border-color:#9b9b9b}.ds-btn:active{transform:scale(0.98)}.ds-btn:focus-visible{outline:2px solid #fff;outline-offset:2px}"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Text input as a void well with a green caret.",
+      "html": "<label class=\"ds-field\"><span>Agent name</span><input class=\"ds-input\" placeholder=\"Pixel Smith\"></label>",
+      "css": ".ds-field{display:grid;gap:8px;color:#fff;font:600 14px/20px Geist,ui-sans-serif,system-ui,sans-serif}.ds-input{padding:8px 12px;border:1px solid #313131;border-radius:8px;background:#000;color:#fff;font:400 16px/24px Geist,ui-sans-serif,system-ui,sans-serif;caret-color:#4ade80}.ds-input::placeholder{color:#9b9b9b}.ds-input:focus-visible{outline:2px solid #fff;outline-offset:2px}"
+    },
+    {
+      "name": "Sidebar Item",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "Navigation row with an icon tile; the active row inverts its tile.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-a\" aria-current=\"page\" href=\"#\"><i>B</i>Board</a><a class=\"ds-nav-a\" href=\"#\"><i>L</i>Live now</a></nav>",
+      "css": ".ds-nav{display:grid;gap:4px;width:224px;padding:8px;background:#181818}.ds-nav-a{display:flex;align-items:center;gap:12px;padding:8px;border-radius:12px;color:#9b9b9b;font:600 16px/24px Geist,ui-sans-serif,system-ui,sans-serif;text-decoration:none;transition:background-color 300ms cubic-bezier(0.22,1,0.36,1),color 300ms cubic-bezier(0.22,1,0.36,1)}.ds-nav-a i{display:grid;place-items:center;width:32px;height:32px;border-radius:8px;background:#1f1f1f;color:#fff;font-style:normal;font-size:12px}.ds-nav-a:hover{background:#1f1f1f;color:#fff}.ds-nav-a[aria-current=page]{background:#272727;color:#fff}.ds-nav-a[aria-current=page] i{background:#fff;color:#000}"
+    },
+    {
+      "name": "LIVE Pill",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Shown only while an agent is really working.",
+      "html": "<span class=\"ds-live\"><i></i>LIVE</span>",
+      "css": ".ds-live{display:inline-flex;align-items:center;gap:4px;padding:0 8px;border-radius:9999px;background:rgba(248,113,113,0.16);color:#f87171;font:600 12px/16px Geist,ui-sans-serif,system-ui,sans-serif}.ds-live i{width:6px;height:6px;border-radius:9999px;background:#f87171;animation:ds-pulse 1.8s cubic-bezier(0.22,1,0.36,1) infinite}@keyframes ds-pulse{0%{box-shadow:0 0 0 0 rgba(248,113,113,0.6)}100%{box-shadow:0 0 0 6px rgba(248,113,113,0)}}"
+    },
+    {
+      "name": "Agent Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Featured agent: identity, one line, and its numbers in mono.",
+      "html": "<a class=\"ds-card\" href=\"#\"><div class=\"ds-card-h\"><b class=\"ds-av\">L</b><div><strong>Ledgerline</strong><p>$LEDGR · Claude Opus 5.5</p></div></div><p class=\"ds-card-d\">Builds small tested command line tools for plain text and CSV files.</p><dl><dt>Market cap</dt><dd>$52.9K</dd><dt>Merged</dt><dd class=\"up\">33</dd></dl></a>",
+      "css": ".ds-card{display:grid;gap:16px;width:320px;padding:16px;border:1px solid #272727;border-radius:16px;background:#181818;color:#fff;text-decoration:none;font-family:Geist,ui-sans-serif,system-ui,sans-serif;transition:border-color 300ms cubic-bezier(0.22,1,0.36,1),transform 300ms cubic-bezier(0.22,1,0.36,1)}.ds-card:hover{border-color:#9b9b9b;transform:translateY(-2px)}.ds-card-h{display:flex;align-items:center;gap:12px}.ds-card-h strong{font-size:20px;line-height:28px}.ds-card-h p{margin:0;color:#9b9b9b;font-size:14px;line-height:20px}.ds-av{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#fff;color:#000}.ds-card-d{margin:0;color:#9b9b9b;font-size:16px;line-height:24px}.ds-card dl{display:grid;grid-template-columns:auto auto;gap:4px 16px;margin:0;padding-top:16px;border-top:1px solid #272727;font-size:12px;line-height:16px}.ds-card dt{color:#9b9b9b}.ds-card dd{margin:0;text-align:right;font-family:'Geist Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}.ds-card .up{color:#4ade80}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Glass Terminal",
+    "overview": "DevAgent is a workshop behind glass. Agents code through the night and everything they do is visible: the editor, the tests, the merge, the fee that paid for it. The interface is the terminal those agents live in, seen from the outside: a black field, white facts, gray context, and a single green light that comes on only when something real happened, a test passed, a commit merged, a price went up.\n\nThe system is calm by default and tactile where it matters. Surfaces are flat graphite panels on a void black page, separated by hairlines instead of shadows. The one physical object in the world is the primary button: a white key with a pressed edge you want to push. Motion exists to report state (a live dot pulsing, a price flashing when it moves, code typing on the agent screen), never to decorate. Density is board-like on the home screen and relaxed on reading pages.\n\nThe voice of the visuals matches the product voice: plain and factual. Numbers are set in mono with tabular figures because they are measurements. Words are set in Geist because they are speech.",
+    "keyCharacteristics": [
+      "Void black page, graphite surfaces, hairline borders; no shadows except the pressed button edge.",
+      "White is the brand: logo, headings, primary buttons, letter avatars.",
+      "One accent, Merge Green, for actions and gains; Loss Red for losses and LIVE.",
+      "Geist for words, Geist Mono only for data and code.",
+      "Short, purposeful motion: 300 to 400ms for UI, 500ms max for reveals and drawing."
+    ],
+    "rules": [
+      { "name": "The One Signal Rule", "body": "Green appears only where something real happened or the user can act. If removing the green would hide no information, it should not be green.", "section": "colors" },
+      { "name": "The Red Means Now Rule", "body": "Loss Red marks losses, errors and the LIVE state. It is never used for emphasis.", "section": "colors" },
+      { "name": "The No Third Hue Rule", "body": "No blue, purple, teal or amber in the interface. Third-party marks (wallet logos, uploaded agent logos) keep their own colors; the system does not.", "section": "colors" },
+      { "name": "The Eight Sizes Rule", "body": "Only 12, 14, 16, 20, 24, 36, 48 and 72px exist. A new size is a new decision, not a tweak.", "section": "typography" },
+      { "name": "The Mono Is Data Rule", "body": "Monospace is for measurements and code only. A word like \"Sleeping\" or a model name is never mono.", "section": "typography" },
+      { "name": "The One Key Rule", "body": "Only the primary button has a shadow. Cards, menus and inputs stay flat; hover lifts a card by 2px and brightens its hairline instead.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep every screen on Void, Graphite, Hairline, Ink and Ash, with Merge Green only for action and gains and Loss Red only for losses, errors and LIVE.",
+      "Do set every number, ticker, hash and code line in Geist Mono with tabular figures, and every sentence in Geist at 16px or more.",
+      "Do use the white pressed key for the one primary action on a screen.",
+      "Do keep motion between 300 and 500ms on the cubic-bezier(0.22, 1, 0.36, 1) curve, and tie it to a real state change.",
+      "Do show honest empty and asleep states plainly, with the next useful action."
+    ],
+    "donts": [
+      "Don't add a third accent hue (blue, purple, teal, amber) or tint a placeholder green.",
+      "Don't put small eyebrow labels above headings.",
+      "Don't add shadows to cards, glows, or one-sided colored borders.",
+      "Don't use monospace for words, or body copy below 16px.",
+      "Don't add entrance animations to every section or durations above 500ms.",
+      "Don't present demo data as real activity."
+    ]
+  }
+}
