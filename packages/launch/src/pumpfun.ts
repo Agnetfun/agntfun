@@ -4,7 +4,7 @@ import { NATIVE_MINT } from "@solana/spl-token";
 import { Keypair, PublicKey, Transaction, type Connection } from "@solana/web3.js";
 import BN from "bn.js";
 // The SDK's ESM entry cannot be loaded by Node (its anchor dependency is CommonJS), so load the CommonJS build.
-const { PUMP_SDK, OnlinePumpSdk, getBuyTokenAmountFromSolAmount, bondingCurvePda, canonicalPumpPoolPda } = createRequire(
+const { PUMP_SDK, OnlinePumpSdk, getBuyTokenAmountFromSolAmount, bondingCurvePda, canonicalPumpPoolPda, getPumpAmmProgram } = createRequire(
   import.meta.url,
 )("@pump-fun/pump-sdk") as {
   PUMP_SDK: PumpSdk;
@@ -12,6 +12,7 @@ const { PUMP_SDK, OnlinePumpSdk, getBuyTokenAmountFromSolAmount, bondingCurvePda
   getBuyTokenAmountFromSolAmount: typeof import("@pump-fun/pump-sdk").getBuyTokenAmountFromSolAmount;
   bondingCurvePda: typeof import("@pump-fun/pump-sdk").bondingCurvePda;
   canonicalPumpPoolPda: typeof import("@pump-fun/pump-sdk").canonicalPumpPoolPda;
+  getPumpAmmProgram: typeof import("@pump-fun/pump-sdk").getPumpAmmProgram;
 };
 import { validateLaunch, type LaunchRequest } from "./launchpad";
 import { validateSplit } from "./split";
@@ -108,6 +109,13 @@ export async function buildSplitTx(rpc: Rpc, cluster: string, req: LaunchRequest
         throw new Error("The coin just graduated and its pool is being created. Try again in a minute.");
     }
   }
+  // On a graduated coin, pump-amm wants the pool's creator fees swept first (6081 CreatorFeesNotSwept otherwise,
+  // per the SDK docs); the sweep needs the pool's own coin_creator and quote mint.
+  const before: Transaction["instructions"] = [];
+  if (pool) {
+    const p = await getPumpAmmProgram(rpc as unknown as Connection).account.pool.fetch(pool);
+    before.push(await PUMP_SDK.sweepCreatorFeeInstruction({ payer: creator, mint: m, creator: p.coinCreator, quoteMint: p.quoteMint }));
+  }
   const create = await PUMP_SDK.createFeeSharingConfig({ creator, mint: m, pool });
   const update = await PUMP_SDK.updateFeeShares({
     authority: creator,
@@ -119,7 +127,7 @@ export async function buildSplitTx(rpc: Rpc, cluster: string, req: LaunchRequest
     })),
     bondingCurveComplete: pool !== null,
   });
-  return { tx: b64(await frame(rpc, creator, create, update)) };
+  return { tx: b64(await frame(rpc, creator, ...before, create, update)) };
 }
 
 export async function submitSigned(rpc: RpcSubmit, signedBase64: string): Promise<string> {

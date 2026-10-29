@@ -8,9 +8,34 @@ import { PublicKey, type Connection } from "@solana/web3.js";
 const sdk = createRequire(import.meta.url)("@pump-fun/pump-sdk") as {
   PUMP_SDK: PumpSdk;
   bondingCurvePda(mint: PublicKey): PublicKey;
+  canonicalPumpPoolPda(mint: PublicKey): PublicKey;
+  getPumpAmmProgram: typeof import("@pump-fun/pump-sdk").getPumpAmmProgram;
 };
 
-export type PriceRpc = Pick<Connection, "getAccountInfo" | "getTokenLargestAccounts">;
+export type PriceRpc = Pick<Connection, "getAccountInfo" | "getTokenLargestAccounts"> &
+  Partial<Pick<Connection, "getTokenAccountBalance">>;
+
+/**
+ * A graduated coin trades in its PumpSwap pool: price = SOL in the pool / tokens in the pool (constant product on
+ * the pool's real vault balances, read with the official pump-amm account layout).
+ * TODO(verify): v2 pools also carry `virtualQuoteReserves`; whether PumpSwap prices with it is not stated in the
+ * SDK docs, so it is left out here.
+ */
+async function poolPrice(rpc: PriceRpc, mint: PublicKey): Promise<number | null> {
+  if (!rpc.getTokenAccountBalance) return null;
+  try {
+    const pool = await sdk.getPumpAmmProgram(rpc as unknown as Connection).account.pool.fetch(sdk.canonicalPumpPoolPda(mint));
+    const [base, quote] = await Promise.all([
+      rpc.getTokenAccountBalance(pool.poolBaseTokenAccount, "confirmed"),
+      rpc.getTokenAccountBalance(pool.poolQuoteTokenAccount, "confirmed"),
+    ]);
+    const tokens = Number(base.value.amount) / 10 ** TOKEN_DECIMALS;
+    const sol = Number(quote.value.amount) / 1e9;
+    return tokens > 0 ? sol / tokens : null;
+  } catch {
+    return null; // no pool yet (just graduated) or the RPC refused
+  }
+}
 
 const TOKEN_DECIMALS = 6;
 
@@ -49,8 +74,9 @@ export class PriceSampler {
     const vTok = Number(bc.virtualTokenReserves.toString()) / 10 ** TOKEN_DECIMALS;
     const vSol = Number(bc.virtualQuoteReserves.toString()) / 1e9;
     const supply = Number(bc.tokenTotalSupply.toString()) / 10 ** TOKEN_DECIMALS;
-    if (!(vTok > 0)) return false;
-    const price = vSol / vTok;
+    // On the curve the price comes from its virtual reserves; once graduated, from the PumpSwap pool.
+    const price = bc.complete ? await poolPrice(this.rpc, m) : vTok > 0 ? vSol / vTok : null;
+    if (price === null || !(price > 0)) return false;
     let holders = 0;
     try {
       const largest = (await this.rpc.getTokenLargestAccounts(m, "confirmed")).value.filter(
