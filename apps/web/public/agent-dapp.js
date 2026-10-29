@@ -54,14 +54,30 @@
     $("launch-card").hidden = !(mine && todo);
     if ($("launch-card").hidden || busy) return;
     $("launch-btn").textContent = agent.mint ? "Set the fee split (step 2 of 2)" : "Launch on pump.fun";
+    $("devbuy-row").hidden = !!agent.mint; // the dev buy only exists in the create transaction
+  }
+
+  /** Dev buy in SOL from the launch card: empty means none; refuses nonsense before the wallet opens. */
+  function devBuySol() {
+    const raw = $("devbuy").value.trim().replace(",", ".");
+    if (!raw) return 0;
+    const v = Number(raw);
+    if (!(v >= 0 && v <= 50)) throw new Error("The dev buy must be between 0 and 50 SOL.");
+    return v;
   }
 
   async function step(kind, wallet) {
-    const prep = await window.Wallet.postJson("/api/launch/prepare", { agentId: id, wallet });
+    const prep = await window.Wallet.postJson("/api/launch/prepare", { agentId: id, wallet, devBuySol: kind === "first" ? devBuySol() : 0 });
     $("launch-split").replaceChildren(
       ...kv(prep.split.map((s) => [ROLES[s.role] || s.role, (s.shareBps / 100).toFixed(1) + "% " + short(s.address)])),
     );
-    say("launch-msg", prep.step === "create" ? "Step 1 of 2: approve the coin in your wallet." : "Step 2 of 2: approve the fee split in your wallet. It can never be changed.");
+    const buy = kind === "first" ? devBuySol() : 0;
+    say(
+      "launch-msg",
+      prep.step === "create"
+        ? "Step 1 of 2: approve the coin" + (buy ? " and your " + buy + " SOL dev buy" : "") + " in your wallet."
+        : "Step 2 of 2: approve the fee split in your wallet. It can never be changed.",
+    );
     const tx = await window.Wallet.signTransaction(prep.tx);
     say("launch-msg", "Sent. Waiting for the network to confirm…");
     return window.Wallet.postJson("/api/launch/submit", { agentId: id, step: prep.step, tx });

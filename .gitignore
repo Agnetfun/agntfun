@@ -17,3 +17,6 @@ id.json
 # old duplicate copy of the project and its archive (kept on disk, not tracked)
 /devagent/
 /devagent-update.tar.gz
+
+# Built by "pnpm --filter @devagent/web build:privy" (Privy login bundle)
+apps/web/public/privy-bridge.js

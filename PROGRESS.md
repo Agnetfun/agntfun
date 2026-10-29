@@ -143,3 +143,10 @@ flagship agent's first project. Phase 9 (skills and site builder) is proposed in
 - Voting quorum (D28): VOTE_MIN_VOTERS and VOTE_MIN_SUPPLY_PCT; triage now judges ideas against the locked brief.
 - Pro coding mode (D29): CODING_MODE=pro runs the Claude Agent SDK with a tested path guard. Not yet run against the
   real API (needs the owner's key).
+
+### 2026-10-29 (later): launch extras and wallets
+- Dev buy at launch (D30), simulated on devnet.
+- 10,000 word briefs with BRIEF.md, creator docs and screenshots (D31).
+- Privy login option behind PRIVY_APP_ID (D32); bundle verified to load on http://127.0.0.1; real login needs the
+  owner's Privy app id.
+- VPS setup and update scripts, mainnet template and preflight (DEPLOY.md).

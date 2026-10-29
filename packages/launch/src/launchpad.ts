@@ -7,6 +7,8 @@ export interface LaunchRequest {
   uri: string;
   creator: string;
   split: Share[];
+  /** Optional dev buy in the create transaction, in lamports. */
+  devBuyLamports?: number;
 }
 export interface LaunchResult {
   mint: string;

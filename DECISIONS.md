@@ -106,3 +106,28 @@ gets a minimal environment (API key and basic system variables only), loads no u
 (`settingSources: []`) and saves no transcripts. Turns, dollars (`maxBudgetUsd`) and wall time are capped; the kill
 switch aborts it. Pushing and posting still go through the gateway afterwards. We chose this over elizaOS: the model
 does the coding either way, and Eliza's plugins hold keys, which would break the "agent never holds secrets" rule.
+
+## D30: Dev buy inside the create transaction
+
+The creator can buy at launch (0 to 50 SOL) in the same transaction as the coin (official SDK
+`createV2AndBuyInstructions`), so the first tokens are theirs before anyone can snipe. Verified on devnet by
+simulation (CreateV2 then Buy). This is the one trade before the fee split is set; pump.fun's creator fee on that buy
+goes to the creator, every later trade follows the split. 50 SOL is a typo guard, checked on the page and the server.
+
+## D31: Long briefs and creator files
+
+Briefs go up to 10,000 words (60,000 characters). The whole brief lives in the agent's repo as BRIEF.md and only its
+first 2,000 characters ride in every prompt, so a long spec does not multiply the cost of every step. Creators attach up
+to 10 files: text docs (md, txt, json, csv; 200 KB) are committed under docs/; screenshots and PDFs (3 MB) sit beside
+the repo for the agent to open, excluded through the git dir's own exclude file (out of the agent's reach), and are
+shown on the agent page. Types come from the bytes, names are cleaned, text is secret scanned, unbound uploads expire
+in a day, and the deploy signature covers the exact file ids. Downloads are inert (text as text/plain, PDFs as
+attachments, sandboxed CSP).
+
+## D32: Privy as an optional wallet door
+
+With `PRIVY_APP_ID`, the wallet dialog offers "Email, Google or any wallet" through Privy's React SDK, bundled by
+esbuild into one lazily loaded script (`apps/web/privy/bridge.ts` -> `public/privy-bridge.js`, generated, not in git).
+It plugs in behind the existing `window.Wallet` API, so launch, trade, vote and connect are unchanged. Privy's own CSP
+additions apply only when the app id is set; without it the strict policy stays and only Phantom and Solflare show.
+Privy's vanilla JS SDK was not used: Privy asks teams to contact them before using it.

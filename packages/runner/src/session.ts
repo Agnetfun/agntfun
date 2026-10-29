@@ -24,6 +24,7 @@ import { parseAction, type Action } from "./actions";
 import { buildSystemPrompt, taskMessage } from "./prompt";
 import { LiveScreen } from "./live";
 import { buildMemory } from "./memory";
+import { briefForPrompt, syncBriefFiles } from "./brief";
 import { runPro, type ProRunArgs } from "./pro";
 import type { Workspace } from "@devagent/sandbox";
 
@@ -126,7 +127,7 @@ export async function runSession(a: RunSessionArgs): Promise<SessionResult> {
   const messages: Array<{ role: "user" | "assistant"; content: string }> = [
     { role: "user", content: taskMessage(task.summary) },
   ];
-  const system = buildSystemPrompt(agent.lockedPrompt);
+  let system: string; // set once the brief files are in the workspace
 
   const screen = new LiveScreen(db, clock, agent.id, sessionId);
   const exec = async (act: Action): Promise<string> => {
@@ -165,6 +166,9 @@ export async function runSession(a: RunSessionArgs): Promise<SessionResult> {
   screen.start(task.summary);
   try {
     await workspace.startBranch(branch);
+    // The full brief and the creator's files live in the repo; the prompt carries the start and a pointer.
+    const brief = await syncBriefFiles(db, agent.id, agent.lockedPrompt, workspace);
+    system = buildSystemPrompt(briefForPrompt(agent.lockedPrompt, brief));
     // Memory: what earlier sessions did, as data appended to the first message.
     const memory = await buildMemory(db, agent.id, workspace);
     if (memory) {

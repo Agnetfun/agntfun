@@ -20,6 +20,19 @@
   "devDependencies": {
     "@fontsource-variable/geist": "5.3.0",
     "@fontsource-variable/geist-mono": "5.3.0",
-    "@phosphor-icons/core": "2.1.1"
+    "@phosphor-icons/core": "2.1.1",
+    "@privy-io/react-auth": "3.51.0",
+    "@solana-program/memo": "0.16.0",
+    "@solana-program/system": "0.16.0",
+    "@solana-program/token": "0.18.0",
+    "@solana/kit": "8.6.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "esbuild": "0.28.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "scripts": {
+    "build:privy": "esbuild privy/bridge.ts --bundle --minify --format=iife --platform=browser --target=es2022 --outfile=public/privy-bridge.js --define:process.env.NODE_ENV=\\\"production\\\" --define:global=globalThis --external:permissionless --external:@farcaster/mini-app-solana --external:@abstract-foundation/agw-client --log-level=warning"
   }
 }

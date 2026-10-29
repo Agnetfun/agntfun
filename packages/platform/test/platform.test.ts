@@ -14,6 +14,8 @@ import {
   deployAgent,
   agentSeries,
   deployMessage,
+  listAttachments,
+  saveAttachment,
   dismissReports,
   getLogo,
   proofScore,
@@ -59,6 +61,20 @@ function req(
 }
 
 describe("deploy", () => {
+  it("binds attached files to the agent only with a signature that covers them", () => {
+    const w = wallet();
+    const up = (n: string) => (saveAttachment(db, clock, n, Buffer.from("# doc")) as { id: string }).id;
+    const ids = [up("a.md"), up("b.md")];
+    // Signed without the files, then files added: refused, nothing bound.
+    const unsigned = { ...req(w, { name: "File Smith" }), attachmentIds: ids };
+    expect(deployAgent(db, clock, unsigned)).toMatchObject({ ok: false, reason: expect.stringMatching(/signature/) });
+    const r = deployAgent(db, clock, req(w, { name: "File Smith", attachmentIds: ids }));
+    expect(r).toMatchObject({ ok: true });
+    expect(listAttachments(db, (r as { agentId: string }).agentId).map((f) => f.name)).toEqual(["a.md", "b.md"]);
+    // The same uploads cannot be attached to a second agent.
+    expect(deployAgent(db, clock, req(w, { name: "Other Smith", attachmentIds: ids }))).toMatchObject({ ok: false });
+  });
+
   it("creates an agent with the chosen model, a repo and the deployer wallet", () => {
     const w = wallet();
     const r = deployAgent(db, clock, req(w));
@@ -80,7 +96,8 @@ describe("deploy", () => {
     ["markup in name", (w) => req(w, { name: "<b>bold</b>" }), /Name must/],
     ["reserved name", (w) => req(w, { name: "Official Support" }), /reserved/],
     ["short brief", (w) => req(w, { brief: "too short" }), /brief must/],
-    ["huge brief", (w) => req(w, { brief: "x".repeat(2001) }), /brief must/],
+    ["huge brief", (w) => req(w, { brief: "x".repeat(60_001) }), /brief must/],
+    ["over 10,000 words", (w) => req(w, { brief: "word ".repeat(10_001) }), /over 10,000 words/],
     [
       "harmful brief",
       (w) => req(w, { brief: "Build ransomware that encrypts every file it finds." }),

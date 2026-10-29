@@ -102,10 +102,24 @@
           /></label>
           <label class="field"
             ><span>Brief, locked once the agent exists</span
-            ><textarea name="brief" maxlength="2000" aria-describedby="brief-err"></textarea
-            ><span class="counter" id="brief-count">0 of 2000</span
+            ><textarea name="brief" maxlength="60000" aria-describedby="brief-err brief-hint"></textarea
+            ><span class="counter" id="brief-count">0 of 10,000 words</span
+            ><span class="note muted" id="brief-hint">Write a full spec if you like. The agent reads all of it from BRIEF.md in its repo.</span
             ><span class="err" id="brief-err" role="alert"></span
           ></label>
+          <div class="field">
+            <span id="files-l">Files and screenshots, optional</span>
+            <label class="drop" id="drop" aria-describedby="files-hint">
+              <input type="file" id="files" multiple accept=".png,.jpg,.jpeg,.webp,.pdf,.md,.txt,.json,.csv" aria-labelledby="files-l" />
+              <span>Drop files here, paste a screenshot (Ctrl+V), or <u>browse</u></span>
+            </label>
+            <ul class="files" id="file-list" aria-live="polite"></ul>
+            <span class="note muted" id="files-hint"
+              >Up to 10. PNG, JPG, WebP or PDF up to 3 MB; Markdown, text, JSON or CSV up to 200 KB. Public, like the
+              brief.</span
+            >
+            <span class="err" id="files-err" role="alert"></span>
+          </div>
           <label class="field"
             ><span>X handle of the agent, optional (set for you when you connect X)</span
             ><input
@@ -180,6 +194,7 @@
       </div>
     </main>
     {{partial:footer}} {{partial:scripts}}
+    <script src="/launch-files.js" defer></script>
     <script src="/launch.js" defer></script>
   </body>
 </html>

@@ -276,7 +276,9 @@ describe("write endpoints", () => {
         })
       ).status,
     ).toBe(415);
-    expect((await post("/api/deploy", { brief: "x".repeat(20_000) })).status).toBe(413);
+    // Deploys may carry a 10,000 word brief (128 KB body); anything past that, or a big body elsewhere, is refused.
+    expect((await post("/api/deploy", { brief: "x".repeat(140_000) })).status).toBe(413);
+    expect((await post("/api/vote", { pad: "x".repeat(20_000) })).status).toBe(413);
     expect((await post("/api/deploy", {}, { origin: "https://evil.example" })).status).toBe(403);
     expect((await post("/nope", {})).status).toBe(405);
   });

@@ -93,7 +93,7 @@ export function createDappRoutes(d: DappDeps) {
           return ok({ ok: true, note: "Thanks. It is checked by the filter, then shows up in the queue." }, 201);
         }
         if (path === "/api/launch/prepare")
-          return ok(await prepareLaunch(d.db, d.clock, d.rpc, d.launch, agentId, str(body.wallet, 64)));
+          return ok(await prepareLaunch(d.db, d.clock, d.rpc, d.launch, agentId, str(body.wallet, 64), Number(body.devBuySol) || 0));
         const step = body.step === "split" ? "split" : "create";
         return ok(await submitLaunch(d.db, d.clock, d.rpc, d.launch, agentId, step, str(body.tx, 4000)));
       } catch (e) {
@@ -122,7 +122,14 @@ export function createDappRoutes(d: DappDeps) {
         return Promise.resolve({ status: 200, type: "text/javascript; charset=utf-8", body: chartsBrowser });
       if (path === "/api/config")
         return Promise.resolve(
-          ok({ cluster: d.launch.cluster, vcs: d.vcsMode, social: d.socialMode, platformToken: d.platformToken ?? null }),
+          ok({
+            cluster: d.launch.cluster,
+            vcs: d.vcsMode,
+            social: d.socialMode,
+            platformToken: d.platformToken ?? null,
+            // Public app id (not a secret): turns on "Email, Google or any wallet" through Privy.
+            privyAppId: process.env.PRIVY_APP_ID || null,
+          }),
         );
       if (path === "/api/burns") return Promise.resolve(this.burns());
       const meta = /^\/meta\/([0-9A-HJKMNP-TV-Z]{26})\.json$/.exec(path);

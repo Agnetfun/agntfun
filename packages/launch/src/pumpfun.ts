@@ -1,8 +1,14 @@
 import { createRequire } from "node:module";
-import type { PumpSdk } from "@pump-fun/pump-sdk";
-import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import type { OnlinePumpSdk as OnlineSdk, PumpSdk } from "@pump-fun/pump-sdk";
+import { NATIVE_MINT } from "@solana/spl-token";
+import { Keypair, PublicKey, Transaction, type Connection } from "@solana/web3.js";
+import BN from "bn.js";
 // The SDK's ESM entry cannot be loaded by Node (its anchor dependency is CommonJS), so load the CommonJS build.
-const { PUMP_SDK } = createRequire(import.meta.url)("@pump-fun/pump-sdk") as { PUMP_SDK: PumpSdk };
+const { PUMP_SDK, OnlinePumpSdk, getBuyTokenAmountFromSolAmount } = createRequire(import.meta.url)("@pump-fun/pump-sdk") as {
+  PUMP_SDK: PumpSdk;
+  OnlinePumpSdk: new (c: Connection) => OnlineSdk;
+  getBuyTokenAmountFromSolAmount: typeof import("@pump-fun/pump-sdk").getBuyTokenAmountFromSolAmount;
+};
 import { validateLaunch, type LaunchRequest } from "./launchpad";
 import { validateSplit } from "./split";
 
@@ -48,23 +54,34 @@ async function frame(
   return tx;
 }
 
-/** Step 1: create the coin (create_v2, no initial buy, so nothing trades before the split is set). */
+/** A dev buy above this is almost surely a typo (100 instead of 1.00); the creator can buy more on the curve later. */
+export const DEV_BUY_MAX_LAMPORTS = 50 * 1e9;
+
+/**
+ * Step 1: create the coin. With a dev buy, create and buy in ONE transaction (create_v2 + buy, official SDK
+ * createV2AndBuyInstructions), so the creator's first tokens land before anyone else can buy. The only trade before
+ * the split is set is this buy; its own creator fee goes to the creator, everything after follows the split.
+ */
 export async function buildCreateTx(rpc: Rpc, cluster: string, req: LaunchRequest) {
   assertCluster(cluster);
   validateLaunch(req);
   validateSplit(req.split);
+  const devBuy = req.devBuyLamports ?? 0;
+  if (!Number.isInteger(devBuy) || devBuy < 0 || devBuy > DEV_BUY_MAX_LAMPORTS)
+    throw new Error("dev buy must be between 0 and 50 SOL");
   const creator = new PublicKey(req.creator);
   const mint = Keypair.generate();
-  const ix = await PUMP_SDK.createV2Instruction({
-    mint: mint.publicKey,
-    name: req.name,
-    symbol: req.symbol,
-    uri: req.uri,
-    creator,
-    user: creator,
-    mayhemMode: false,
-  });
-  const tx = await frame(rpc, creator, ix);
+  const meta = { mint: mint.publicKey, name: req.name, symbol: req.symbol, uri: req.uri, creator, user: creator, mayhemMode: false };
+  let ixs: Transaction["instructions"];
+  if (devBuy > 0) {
+    // The quote needs pump.fun's live global and fee settings, so the rpc must be a full Connection here.
+    const online = new OnlinePumpSdk(rpc as unknown as Connection);
+    const [global, feeConfig] = await Promise.all([online.fetchGlobal(), online.fetchFeeConfig()]);
+    const solAmount = new BN(devBuy);
+    const amount = getBuyTokenAmountFromSolAmount({ global, feeConfig, mintSupply: null, bondingCurve: null, amount: solAmount, quoteMint: NATIVE_MINT });
+    ixs = await PUMP_SDK.createV2AndBuyInstructions({ ...meta, global, amount, solAmount });
+  } else ixs = [await PUMP_SDK.createV2Instruction(meta)];
+  const tx = await frame(rpc, creator, ...ixs);
   tx.partialSign(mint);
   return { mint: mint.publicKey.toBase58(), tx: b64(tx) };
 }

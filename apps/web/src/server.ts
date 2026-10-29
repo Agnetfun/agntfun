@@ -27,6 +27,7 @@ import {
 import type { KillSwitch } from "@devagent/safety";
 import type { Treasury } from "@devagent/treasury";
 import type { DappRoutes } from "./dapp-routes";
+import { createAttachmentRoutes } from "./attachment-routes";
 
 export interface WebDeps {
   db: Db;
@@ -53,6 +54,8 @@ export interface WebDeps {
 }
 
 const MAX_BODY = 8192;
+/** A deploy carries a brief of up to 10,000 words (60,000 characters) plus small fields. */
+const MAX_DEPLOY_BODY = 131_072;
 const SORTS: Sort[] = ["proof", "new", "funded"];
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -65,8 +68,25 @@ const TYPES: Record<string, string> = {
   ".png": "image/png",
   ".txt": "text/plain; charset=utf-8",
 };
-export const CSP =
+const STRICT_CSP =
   "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+// With a Privy app, the policy adds exactly what Privy's CSP guide lists for its login window, embedded wallets,
+// WalletConnect and Cloudflare Turnstile, plus the public Solana RPCs its wallet screens read. Nothing else loosens.
+const PRIVY_CSP = [
+  "default-src 'none'",
+  "script-src 'self' https://challenges.cloudflare.com",
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self'",
+  "img-src 'self' data: blob:",
+  "connect-src 'self' https://auth.privy.io wss://relay.walletconnect.com wss://relay.walletconnect.org wss://www.walletlink.org https://*.rpc.privy.systems https://explorer-api.walletconnect.com https://api.mainnet-beta.solana.com https://api.devnet.solana.com wss://api.mainnet-beta.solana.com wss://api.devnet.solana.com",
+  "child-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org",
+  "frame-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org https://challenges.cloudflare.com",
+  "worker-src 'self'",
+  "base-uri 'none'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+export const CSP = process.env.PRIVY_APP_ID ? PRIVY_CSP : STRICT_CSP;
 const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
 interface Asset {
@@ -179,6 +199,7 @@ export function createWebServer(d: WebDeps): { server: Server; close(): void; st
   };
   const readJson = (
     req: IncomingMessage,
+    max = MAX_BODY,
   ): Promise<
     { ok: true; body: Record<string, unknown> } | { ok: false; status: number; error: string }
   > =>
@@ -192,14 +213,14 @@ export function createWebServer(d: WebDeps): { server: Server; close(): void; st
       let size = 0;
       req.on("data", (c: Buffer) => {
         size += c.length;
-        if (size > MAX_BODY) {
-          if (size - c.length <= MAX_BODY)
+        if (size > max) {
+          if (size - c.length <= max)
             resolve({ ok: false, status: 413, error: "That request is too large." });
           // keep draining so the response can be delivered, but never buffer it
         } else parts.push(c);
       });
       req.on("end", () => {
-        if (size > MAX_BODY) return;
+        if (size > max) return;
         try {
           const v = JSON.parse(Buffer.concat(parts).toString("utf8")) as unknown;
           if (v && typeof v === "object" && !Array.isArray(v))
@@ -216,6 +237,8 @@ export function createWebServer(d: WebDeps): { server: Server; close(): void; st
   const str = (v: unknown, max = 4000) => (typeof v === "string" ? v.slice(0, max) : "");
 
   /** Raw image body. Size capped while reading; the type is decided from the bytes, not the header. */
+  const files = createAttachmentRoutes({ db: d.db, clock });
+
   async function uploadLogo(req: IncomingMessage, res: ServerResponse) {
     const origin = req.headers.origin;
     if (origin && new URL(origin).host !== req.headers.host)
@@ -239,6 +262,7 @@ export function createWebServer(d: WebDeps): { server: Server; close(): void; st
       "/api/vote": [60, 600_000],
       "/api/report": [5, 3_600_000],
       "/api/logo": [10, 3_600_000],
+      [files.path]: files.rule,
       ...d.dapp?.postPaths,
     };
     const r = rule[path];
@@ -249,7 +273,8 @@ export function createWebServer(d: WebDeps): { server: Server; close(): void; st
     if (!allow(key, path, r[0], r[1]))
       return json(req, res, 429, { error: "Too many attempts. Try again later." });
     if (path === "/api/logo") return uploadLogo(req, res);
-    const b = await readJson(req);
+    if (path === files.path) return files.upload(req, res, json);
+    const b = await readJson(req, path === "/api/deploy" ? MAX_DEPLOY_BODY : MAX_BODY);
     if (!b.ok) return json(req, res, b.status, { error: b.error });
     const body = b.body;
     if (d.dapp && Object.hasOwn(d.dapp.postPaths, path)) {
@@ -263,7 +288,7 @@ export function createWebServer(d: WebDeps): { server: Server; close(): void; st
         {
           name: str(body.name, 80),
           model: str(body.model, 20),
-          brief: str(body.brief, 2100),
+          brief: str(body.brief, 61_000),
           wallet: str(body.wallet, 64),
           signature: str(body.signature, 200),
           nonce: str(body.nonce, 64),
@@ -272,6 +297,9 @@ export function createWebServer(d: WebDeps): { server: Server; close(): void; st
           description: str(body.description, 400),
           xHandle: str(body.xHandle, 20),
           logoId: str(body.logoId, 40),
+          attachmentIds: Array.isArray(body.attachmentIds)
+            ? body.attachmentIds.filter((x): x is string => typeof x === "string").slice(0, 20).map((x) => x.slice(0, 40))
+            : undefined,
         },
         d.deploy ?? DEFAULT_DEPLOY,
       );
@@ -395,6 +423,7 @@ export function createWebServer(d: WebDeps): { server: Server; close(): void; st
           candles: market.candles(mk[1]!, tf as Timeframe, Date.now()),
         });
       }
+      if (files.get(req, res, path, json)) return;
       const lg = /^\/logo\/([0-9A-HJKMNP-TV-Z]{26})$/.exec(path);
       if (lg) {
         const l = getLogo(d.db, lg[1]!);

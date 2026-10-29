@@ -107,7 +107,7 @@ function savePending(db: Db, clock: Clock, agentId: string, step: Step, mint: st
 }
 
 export async function prepareLaunch(
-  db: Db, clock: Clock, rpc: LaunchRpc, c: WebLaunchConfig, agentId: string, wallet: string,
+  db: Db, clock: Clock, rpc: LaunchRpc, c: WebLaunchConfig, agentId: string, wallet: string, devBuySol = 0,
 ): Promise<{ step: Step; mint: string; tx: string; split: Share[] }> {
   const a = owned(db, agentId, wallet);
   const launched = getLaunch(db, agentId);
@@ -121,6 +121,7 @@ export async function prepareLaunch(
   // The metadata URI is written into the coin forever. On mainnet it must be a public https address.
   if (c.cluster === "mainnet-beta" && !/^https:\/\/(?!127\.|localhost)/.test(c.publicUrl))
     fail("Mainnet launches need PUBLIC_URL set to this site's public https address.");
+  if (!(Number.isFinite(devBuySol) && devBuySol >= 0 && devBuySol <= 50)) fail("The dev buy must be between 0 and 50 SOL.");
   const split = splitFor(db, agentId, wallet, c);
   const { mint, tx } = await buildCreateTx(rpc, c.cluster, {
     name: a.name.slice(0, 32),
@@ -128,6 +129,7 @@ export async function prepareLaunch(
     uri: `${c.publicUrl.replace(/\/+$/, "")}/meta/${agentId}.json`,
     creator: wallet,
     split,
+    devBuyLamports: devBuySol > 0 ? Math.round(devBuySol * 1e9) : 0,
   });
   savePending(db, clock, agentId, "create", mint, tx, split);
   return { step: "create", mint, tx, split };

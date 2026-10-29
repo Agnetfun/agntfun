@@ -32,6 +32,7 @@ Packages: `packages/core` (config, logger, secrets, clock, ids), `packages/db` (
 - `pnpm boot` boots once and exits; `pnpm dev` runs the orchestrator (creates `.env` from `.env.example`)
 - `pnpm local` runs web + orchestrator together; `pnpm wallet list|create|airdrop|send`; `pnpm creds set <agent> github|x <token>`
 - `pnpm secret-scan [--staged]`; the pre-commit hook runs it automatically
+- `pnpm preflight <app.env> [orchestrator.env]` checks mainnet settings; `pnpm --filter @devagent/web build:privy` builds the Privy login bundle (`pnpm local` does it for you). Deploy: DEPLOY.md
 
 ## Rules reminders
 

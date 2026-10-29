@@ -2,6 +2,7 @@ import { scanText, ulid, MODEL_CHOICES, type Clock, type ModelChoice } from "@de
 import { createAgent, sha256, type Db } from "@devagent/db";
 import { verifyWalletSignature } from "@devagent/community";
 import { checkPost, checkPrompt } from "@devagent/safety";
+import { ATTACH, bindAttachments } from "./attachments";
 
 export interface DeployRequest {
   name: string;
@@ -15,7 +16,12 @@ export interface DeployRequest {
   description?: string;
   xHandle?: string;
   logoId?: string;
+  /** Uploaded docs and screenshots (see attachments.ts), bound to the agent on deploy. */
+  attachmentIds?: string[];
 }
+/** A brief can be a full spec: up to 10,000 words. Only its start rides in every prompt; the rest is in BRIEF.md. */
+export const BRIEF = { minChars: 20, maxChars: 60_000, maxWords: 10_000 };
+export const wordCount = (s: string) => (s.trim() ? s.trim().split(/\s+/).length : 0);
 export interface DeployOptions {
   /** GitHub organisation that holds agent repositories. Repository creation itself is the gateway's job (TODO(verify)). */
   org: string;
@@ -43,10 +49,15 @@ const RESERVED = [
   "openai",
 ];
 
-/** What the deployer signs. Binds the name, model and exact brief, so none of them can be swapped after signing. */
+/**
+ * What the deployer signs. Binds the name, model, exact brief and (when present) the exact attached files, so none of
+ * them can be swapped after signing.
+ */
 export const deployMessage = (
-  r: Pick<DeployRequest, "name" | "model" | "brief" | "nonce" | "ts">,
-) => `devagent-deploy:v1:${r.name}:${r.model}:${sha256(r.brief)}:${r.nonce}:${r.ts}`;
+  r: Pick<DeployRequest, "name" | "model" | "brief" | "nonce" | "ts" | "attachmentIds">,
+) =>
+  `devagent-deploy:v1:${r.name}:${r.model}:${sha256(r.brief)}:${r.nonce}:${r.ts}` +
+  (r.attachmentIds?.length ? `:files:${sha256(r.attachmentIds.join(","))}` : "");
 
 export function deployAgent(
   db: Db,
@@ -63,8 +74,9 @@ export function deployAgent(
   if (!checkPost(name).ok) return no("That name is not allowed.");
   if (!(MODEL_CHOICES as readonly string[]).includes(r.model))
     return no("Pick Claude Opus 5.5 or GPT 6 Astra.");
-  if (typeof r.brief !== "string" || r.brief.trim().length < 20 || r.brief.length > 2000)
-    return no("The brief must be 20 to 2000 characters.");
+  if (typeof r.brief !== "string" || r.brief.trim().length < BRIEF.minChars || r.brief.length > BRIEF.maxChars)
+    return no("The brief must be 20 to 60,000 characters.");
+  if (wordCount(r.brief) > BRIEF.maxWords) return no("The brief is over 10,000 words.");
   const bad = checkPrompt(r.brief);
   if (!bad.ok) return no("The brief asks for something this platform does not allow.");
   if (scanText(r.brief).length) return no("The brief looks like it contains a secret. Remove it.");
@@ -87,6 +99,11 @@ export function deployAgent(
     if (db.prepare("SELECT 1 x FROM agents WHERE logo_id=?").get(r.logoId))
       return no("That logo is already in use.");
   }
+  const files = r.attachmentIds ?? [];
+  if (files.length > ATTACH.maxFiles) return no(`At most ${ATTACH.maxFiles} files.`);
+  for (const f of files)
+    if (!db.prepare("SELECT 1 x FROM attachments WHERE id=? AND agent_id IS NULL").get(f))
+      return no("An attached file was not found. Upload it again.");
   const now = clock.now();
   if (!Number.isFinite(r.ts) || now - r.ts > o.maxAgeMs || r.ts - now > 60_000)
     return no("The signed request is too old. Sign again.");
@@ -122,5 +139,9 @@ export function deployAgent(
     r.logoId ?? null,
     a.id,
   );
+  if (files.length) {
+    const bound = bindAttachments(db, a.id, files);
+    if (!bound.ok) return no(bound.reason); // checked above; only a race between two deploys lands here
+  }
   return { ok: true, agentId: a.id, repo };
 }

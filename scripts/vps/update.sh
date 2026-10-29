@@ -8,6 +8,7 @@ ETC=/etc/devagent
 cd "$APP_DIR"
 sudo -u devagent git pull --ff-only
 sudo -u devagent pnpm install --frozen-lockfile
+sudo -u devagent pnpm --filter @devagent/web build:privy
 node scripts/preflight-mainnet.mjs "$ETC/app.env" "$ETC/orchestrator.env"
 systemctl restart devagent-web devagent-orchestrator
 echo "Updated to $(sudo -u devagent git log -1 --format='%h %s'). Logs: journalctl -u devagent-web -u devagent-orchestrator -f"

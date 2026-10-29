@@ -38,6 +38,10 @@ export interface Workspace {
   patchSinceMain(): Promise<string>;
   /** The folder holding the agent's files (no .git inside); pro coding mode pins every tool path to it. */
   readonly root?: string;
+  /** System side writes of creator files (screenshots, PDFs): bytes, up to MAX_ATTACHMENT. Not an agent action. */
+  writeBytes?(path: string, bytes: Uint8Array): Promise<void>;
+  /** Keeps paths out of git through the git dir's own exclude file, which the agent cannot reach. */
+  excludeFromGit?(patterns: string[]): Promise<void>;
   /** main as a patch from an empty tree (starter files), for the first commit of a new remote. */
   patchOfMain?(): Promise<string>;
   /** Fast forwards main to the current branch. Called after the gateway merged remotely. */
@@ -47,6 +51,7 @@ export interface Workspace {
 }
 
 export const MAX_FILE = 200_000;
+export const MAX_ATTACHMENT = 3_000_000;
 
 /** Resolves a model supplied path inside root, or throws. Handles `..`, absolute paths, .git and symlinks. */
 export function safePath(root: string, p: string): string {
@@ -149,6 +154,22 @@ export abstract class GitWorkspace implements Workspace {
     mkdirSync(dirname(full), { recursive: true });
     safePath(this.work, path); // re-check after creating parents
     writeFileSync(full, content);
+  }
+
+  async writeBytes(path: string, bytes: Uint8Array): Promise<void> {
+    if (bytes.byteLength > MAX_ATTACHMENT) throw new WorkspaceError("file too large");
+    const full = safePath(this.work, path);
+    mkdirSync(dirname(full), { recursive: true });
+    safePath(this.work, path);
+    writeFileSync(full, bytes);
+  }
+
+  async excludeFromGit(patterns: string[]): Promise<void> {
+    const file = resolve(this.gitDir, "info", "exclude");
+    mkdirSync(dirname(file), { recursive: true });
+    const have = existsSync(file) ? readFileSync(file, "utf8") : "";
+    const add = patterns.filter((p) => !have.split(/\r?\n/).includes(p));
+    if (add.length) writeFileSync(file, `${have}${have && !have.endsWith("\n") ? "\n" : ""}${add.join("\n")}\n`);
   }
 
   async listDir(path: string): Promise<string[]> {

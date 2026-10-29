@@ -147,6 +147,11 @@ describe("real pump.fun transaction builder (offline, official SDK)", () => {
     expect(signed[0]!.publicKey.toBase58()).toBe(mint);
   });
 
+  it("refuses a dev buy that is negative, fractional lamports, or over 50 SOL (checked on devnet by simulation)", async () => {
+    for (const devBuyLamports of [-1, 0.5, 51 * 1e9])
+      await expect(buildCreateTx(rpc, "devnet", { ...req, devBuyLamports })).rejects.toThrow("dev buy");
+  });
+
   it("builds the split transaction with the pump fees program and no signatures at all", async () => {
     const { mint } = await buildCreateTx(rpc, "devnet", req);
     const { tx } = await buildSplitTx(rpc, "devnet", req, mint);

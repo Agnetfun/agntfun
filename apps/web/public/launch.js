@@ -18,7 +18,8 @@
     $("sum-name").textContent = form.name.value.trim() || "Not set";
     const t = form.ticker.value.trim().toUpperCase();
     $("sum-ticker").textContent = t ? "$" + t : "Not set";
-    $("brief-count").textContent = form.brief.value.length + " of 2000";
+    const words = form.brief.value.trim() ? form.brief.value.trim().split(/\s+/).length : 0;
+    $("brief-count").textContent = words.toLocaleString() + " of 10,000 words";
   }
   function button() {
     $("submit").textContent = window.Wallet.address() ? "Sign and create agent" : "Connect wallet";
@@ -79,6 +80,16 @@
     if (brief.trim().length < 20) {
       err("brief-err", "Write at least 20 characters about what the agent should build.");
       bad = true;
+    } else if (brief.trim().split(/\s+/).length > 10000) {
+      err("brief-err", "The brief is over 10,000 words.");
+      bad = true;
+    }
+    let attachmentIds = [];
+    try {
+      attachmentIds = window.DA.launchFiles ? window.DA.launchFiles() : [];
+    } catch (e) {
+      $("files-err").textContent = e.message;
+      bad = true;
     }
     if (xHandle && !/^[A-Za-z0-9_]{1,15}$/.test(xHandle)) {
       err("x-err", "Use the handle only, up to 15 letters, numbers or underscores.");
@@ -99,6 +110,8 @@
         await window.Wallet.sha256Hex(brief),
         n,
         ts,
+        // The signature also covers the exact attached files, so they cannot be swapped after signing.
+        ...(attachmentIds.length ? ["files", await window.Wallet.sha256Hex(attachmentIds.join(","))] : []),
       ].join(":");
       const signature = await window.Wallet.sign(message);
       let logoId;
@@ -124,6 +137,7 @@
         description: form.description.value.trim(),
         xHandle,
         logoId,
+        attachmentIds,
       });
       $("result").className = "note mt-3 ok-msg";
       $("result").textContent = "Agent created. Opening its page.";

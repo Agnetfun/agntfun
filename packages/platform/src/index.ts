@@ -5,3 +5,4 @@ export * from "./vault";
 export * from "./logo";
 export * from "./series";
 export * from "./connect";
+export * from "./attachments";

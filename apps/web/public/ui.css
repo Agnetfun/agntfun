@@ -1460,6 +1460,12 @@ input[type="file"]::file-selector-button {
 .wm-s {
   background: var(--amber);
 }
+.wm-v {
+  background: var(--green-hi);
+}
+.wallet-opt[hidden] {
+  display: none;
+}
 .wallet-on[hidden] {
   display: none;
 }
@@ -2117,4 +2123,81 @@ table,
   border-color: var(--text);
   background: var(--text);
   color: #000000;
+}
+
+/* Launch: creator files and screenshots */
+.drop {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 88px;
+  padding: 16px;
+  border: 1px dashed var(--line-2);
+  border-radius: 8px;
+  color: var(--muted);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 300ms var(--ease), color 300ms var(--ease);
+}
+.drop:hover,
+.drop.over,
+.drop:focus-within {
+  border-color: var(--green-hi);
+  color: var(--text);
+}
+.drop input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.files {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.files:empty {
+  display: none;
+}
+.files li {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.files img,
+.files .ext {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--surface);
+}
+.files .ext {
+  display: grid;
+  place-items: center;
+  font: 600 12px/16px var(--mono);
+  color: var(--muted);
+}
+.files .nm {
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.files .st {
+  display: block;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--muted);
+}
+.files .st.err {
+  color: var(--red);
 }

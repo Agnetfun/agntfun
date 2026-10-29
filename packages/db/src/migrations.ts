@@ -363,6 +363,19 @@ const v16 = `
 ALTER TABLE suggestions ADD COLUMN triage_attempts INTEGER NOT NULL DEFAULT 0;
 `;
 
+// Creator files for an agent (docs and screenshots), uploaded before deploy and bound to the agent when it is created.
+const v17 = `
+CREATE TABLE attachments (
+  id TEXT PRIMARY KEY,
+  agent_id TEXT REFERENCES agents(id),
+  name TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  bytes BLOB NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX attachments_agent ON attachments(agent_id);
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: "schema_v0", sql: v1 },
   { version: 2, name: "phase1_llm_tasks", sql: v2 },
@@ -380,4 +393,5 @@ export const MIGRATIONS: Migration[] = [
   { version: 14, name: "platform_wallets", sql: v14 },
   { version: 15, name: "connection_health", sql: v15 },
   { version: 16, name: "triage_retries", sql: v16 },
+  { version: 17, name: "attachments", sql: v17 },
 ];

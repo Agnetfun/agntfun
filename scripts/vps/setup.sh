@@ -61,6 +61,7 @@ fi
 say "Install dependencies"
 cd "$APP_DIR"
 sudo -u "$USER_NAME" pnpm install --frozen-lockfile
+sudo -u "$USER_NAME" pnpm --filter @devagent/web build:privy # Privy login bundle (generated, not in git)
 sudo -u "$USER_NAME" mkdir -p "$APP_DIR/data"
 docker pull node:22-slim
 

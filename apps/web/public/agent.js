@@ -28,6 +28,26 @@
     const v = f * 100;
     return (v >= 1 || v === 0 ? +v.toFixed(1) : +v.toPrecision(2)) + "%";
   };
+  // The creator's docs and screenshots, under the brief. Images show as thumbnails; everything opens from /files.
+  let filesLoaded = false;
+  async function loadBriefFiles() {
+    if (filesLoaded) return;
+    filesLoaded = true;
+    try {
+      const r = await fetch("/api/agents/" + encodeURIComponent(id) + "/files");
+      if (!r.ok) return;
+      const { files } = await r.json();
+      $("brief-files").replaceChildren(
+        ...files.map((f) => {
+          const a = h("a", { href: f.url, target: "_blank", rel: "noopener noreferrer", class: "nm" }, f.name);
+          const thumb = f.kind === "image" ? h("img", { src: f.url, alt: "", loading: "lazy" }) : h("span", { class: "ext" }, f.name.split(".").pop().toUpperCase());
+          return h("li", {}, thumb, h("div", {}, a, h("span", { class: "st" }, Math.max(1, Math.round(f.size / 1024)) + " KB")), h("span"));
+        }),
+      );
+    } catch {
+      filesLoaded = false;
+    }
+  }
   fetch("/api/config")
     .then((r) => r.json())
     .then((c) => {
@@ -451,6 +471,7 @@
     );
     // The Buy and Sell panel lives in agent-trade.js.
     $("brief").textContent = a.lockedPrompt || "No brief was set.";
+    loadBriefFiles();
     $("hash").textContent = a.promptHash ? "sha256 " + a.promptHash : "";
   }
 
