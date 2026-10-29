@@ -4,10 +4,14 @@ import { NATIVE_MINT } from "@solana/spl-token";
 import { Keypair, PublicKey, Transaction, type Connection } from "@solana/web3.js";
 import BN from "bn.js";
 // The SDK's ESM entry cannot be loaded by Node (its anchor dependency is CommonJS), so load the CommonJS build.
-const { PUMP_SDK, OnlinePumpSdk, getBuyTokenAmountFromSolAmount } = createRequire(import.meta.url)("@pump-fun/pump-sdk") as {
+const { PUMP_SDK, OnlinePumpSdk, getBuyTokenAmountFromSolAmount, bondingCurvePda, canonicalPumpPoolPda } = createRequire(
+  import.meta.url,
+)("@pump-fun/pump-sdk") as {
   PUMP_SDK: PumpSdk;
   OnlinePumpSdk: new (c: Connection) => OnlineSdk;
   getBuyTokenAmountFromSolAmount: typeof import("@pump-fun/pump-sdk").getBuyTokenAmountFromSolAmount;
+  bondingCurvePda: typeof import("@pump-fun/pump-sdk").bondingCurvePda;
+  canonicalPumpPoolPda: typeof import("@pump-fun/pump-sdk").canonicalPumpPoolPda;
 };
 import { validateLaunch, type LaunchRequest } from "./launchpad";
 import { validateSplit } from "./split";
@@ -92,7 +96,19 @@ export async function buildSplitTx(rpc: Rpc, cluster: string, req: LaunchRequest
   validateSplit(req.split);
   const creator = new PublicKey(req.creator);
   const m = new PublicKey(mint);
-  const create = await PUMP_SDK.createFeeSharingConfig({ creator, mint: m, pool: null });
+  // A coin can graduate before step 2 (a big dev buy, or fast buyers): then the split needs its PumpSwap pool
+  // (pump fees error 6019, AmmAccountsRequiredForGraduatedCoin, otherwise). Read the curve to know which case it is.
+  let pool: PublicKey | null = null;
+  const read = (rpc as Partial<Pick<Connection, "getAccountInfo">>).getAccountInfo?.bind(rpc);
+  if (read) {
+    const info = await read(bondingCurvePda(m), "confirmed");
+    if (info && PUMP_SDK.decodeBondingCurve(info).complete) {
+      pool = canonicalPumpPoolPda(m);
+      if (!(await read(pool, "confirmed")))
+        throw new Error("The coin just graduated and its pool is being created. Try again in a minute.");
+    }
+  }
+  const create = await PUMP_SDK.createFeeSharingConfig({ creator, mint: m, pool });
   const update = await PUMP_SDK.updateFeeShares({
     authority: creator,
     mint: m,
@@ -101,7 +117,7 @@ export async function buildSplitTx(rpc: Rpc, cluster: string, req: LaunchRequest
       address: new PublicKey(s.address),
       shareBps: s.shareBps,
     })),
-    bondingCurveComplete: false,
+    bondingCurveComplete: pool !== null,
   });
   return { tx: b64(await frame(rpc, creator, create, update)) };
 }
