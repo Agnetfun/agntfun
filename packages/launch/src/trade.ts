@@ -1,6 +1,7 @@
 import { createRequire } from "node:module";
 import type { OnlinePumpSdk as OnlineSdk, PumpSdk } from "@pump-fun/pump-sdk";
-import { PublicKey, Transaction, type Connection } from "@solana/web3.js";
+import { NATIVE_MINT } from "@solana/spl-token";
+import { ComputeBudgetProgram, PublicKey, Transaction, type Connection } from "@solana/web3.js";
 import BN from "bn.js";
 
 // Same CommonJS loading as pumpfun.ts.
@@ -82,7 +83,7 @@ export async function buildTrade(
   let quote: TradeQuote;
   if (side === "buy") {
     const s = await online.fetchBuyState(mint, user, tokenProgram);
-    if (s.bondingCurve.complete) throw new TradeError("This coin has graduated. Trade it on pump.fun.");
+    if (s.bondingCurve.complete) return poolTrade(online, user, mint, side, amount, slippagePct, blockhash);
     const tokens = sdk.getBuyTokenAmountFromSolAmount({
       global,
       feeConfig,
@@ -106,7 +107,7 @@ export async function buildTrade(
     quote = { side, inRaw: amountRaw, outRaw: tokens.toString() };
   } else {
     const s = await online.fetchSellState(mint, user, tokenProgram);
-    if (s.bondingCurve.complete) throw new TradeError("This coin has graduated. Trade it on pump.fun.");
+    if (s.bondingCurve.complete) return poolTrade(online, user, mint, side, amount, slippagePct, blockhash);
     const sol = sdk.getSellSolAmountFromTokenAmount({
       global,
       feeConfig,
@@ -132,6 +133,42 @@ export async function buildTrade(
   return {
     tx: tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64"),
     quote,
+  };
+}
+
+/**
+ * A graduated coin trades in its PumpSwap pool. Official SDK route: resolveMultiHopRoute (one hop, SOL <-> coin),
+ * an exact quote by simulateMultiHopSwap, then multiHopSwapInstructions with the minimum out lowered by slippage.
+ * The docs ask to budget compute generously (~200k CU per hop, plus account creation), so the limit is raised.
+ */
+async function poolTrade(
+  online: OnlineSdk,
+  user: PublicKey,
+  mint: PublicKey,
+  side: Side,
+  amount: BN,
+  slippagePct: number,
+  blockhash: ReturnType<Connection["getLatestBlockhash"]>,
+): Promise<{ tx: string; quote: TradeQuote }> {
+  const path = side === "buy" ? [NATIVE_MINT, mint] : [mint, NATIVE_MINT];
+  let hops;
+  let out: bigint;
+  try {
+    hops = await online.resolveMultiHopRoute(path, side);
+    out = BigInt((await online.simulateMultiHopSwap({ user, hops, side, amountIn: amount })).toString());
+  } catch {
+    throw new TradeError(side === "buy" ? "Not enough SOL for this buy, or the pool is not ready yet." : "Not enough of this coin to sell, or the pool is not ready yet.");
+  }
+  if (out === 0n) throw new TradeError("That amount is too small to trade.");
+  const minAmountOut = new BN(((out * BigInt(10_000 - Math.round(slippagePct * 100))) / 10_000n).toString());
+  const ixs = await sdk.PUMP_SDK.multiHopSwapInstructions({ user, hops, side, amountIn: amount, minAmountOut });
+  const tx = new Transaction({ feePayer: user, recentBlockhash: (await blockhash).blockhash }).add(
+    ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
+    ...ixs,
+  );
+  return {
+    tx: tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64"),
+    quote: { side, inRaw: amount.toString(), outRaw: out.toString() },
   };
 }
 

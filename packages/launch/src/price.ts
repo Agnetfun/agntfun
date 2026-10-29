@@ -16,10 +16,10 @@ export type PriceRpc = Pick<Connection, "getAccountInfo" | "getTokenLargestAccou
   Partial<Pick<Connection, "getTokenAccountBalance">>;
 
 /**
- * A graduated coin trades in its PumpSwap pool: price = SOL in the pool / tokens in the pool (constant product on
- * the pool's real vault balances, read with the official pump-amm account layout).
- * TODO(verify): v2 pools also carry `virtualQuoteReserves`; whether PumpSwap prices with it is not stated in the
- * SDK docs, so it is left out here.
+ * A graduated coin trades in its PumpSwap pool: price = (SOL in the pool + the pool's virtualQuoteReserves) / tokens
+ * in the pool, read with the official pump-amm account layout. The virtual part is confirmed by the program itself:
+ * simulated buys and sells on a graduated devnet coin (official SDK simulateMultiHopSwap) match this price after
+ * fees, and miss it by about 20% without the virtual reserves.
  */
 async function poolPrice(rpc: PriceRpc, mint: PublicKey): Promise<number | null> {
   if (!rpc.getTokenAccountBalance) return null;
@@ -30,7 +30,7 @@ async function poolPrice(rpc: PriceRpc, mint: PublicKey): Promise<number | null>
       rpc.getTokenAccountBalance(pool.poolQuoteTokenAccount, "confirmed"),
     ]);
     const tokens = Number(base.value.amount) / 10 ** TOKEN_DECIMALS;
-    const sol = Number(quote.value.amount) / 1e9;
+    const sol = (Number(quote.value.amount) + Number(pool.virtualQuoteReserves?.toString() ?? 0)) / 1e9;
     return tokens > 0 ? sol / tokens : null;
   } catch {
     return null; // no pool yet (just graduated) or the RPC refused

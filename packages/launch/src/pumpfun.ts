@@ -97,24 +97,25 @@ export async function buildSplitTx(rpc: Rpc, cluster: string, req: LaunchRequest
   validateSplit(req.split);
   const creator = new PublicKey(req.creator);
   const m = new PublicKey(mint);
-  // A coin can graduate before step 2 (a big dev buy, or fast buyers): then the split needs its PumpSwap pool
-  // (pump fees error 6019, AmmAccountsRequiredForGraduatedCoin, otherwise). Read the curve to know which case it is.
+  // Before the split, pump.fun wants leftover creator fees swept (6095 / 6081 CreatorFeesNotSwept otherwise):
+  //  - the curve's bucket, to the curve's own creator (harmless when empty, so always included);
+  //  - on a graduated coin, also the pool's bucket, to the pool's own coin_creator; and the split then needs the
+  //    pool itself (pump fees 6019 AmmAccountsRequiredForGraduatedCoin otherwise).
   let pool: PublicKey | null = null;
+  const before: Transaction["instructions"] = [];
   const read = (rpc as Partial<Pick<Connection, "getAccountInfo">>).getAccountInfo?.bind(rpc);
   if (read) {
     const info = await read(bondingCurvePda(m), "confirmed");
-    if (info && PUMP_SDK.decodeBondingCurve(info).complete) {
+    const curve = info ? PUMP_SDK.decodeBondingCurve(info) : null;
+    if (curve)
+      before.push(await PUMP_SDK.sweepCreatorFeeInstruction({ payer: creator, mint: m, creator: curve.creator, quoteMint: curve.quoteMint }));
+    if (curve?.complete) {
       pool = canonicalPumpPoolPda(m);
       if (!(await read(pool, "confirmed")))
         throw new Error("The coin just graduated and its pool is being created. Try again in a minute.");
+      const p = await getPumpAmmProgram(rpc as unknown as Connection).account.pool.fetch(pool);
+      before.push(await PUMP_SDK.sweepPoolCreatorFeeInstruction({ payer: creator, mint: m, coinCreator: p.coinCreator, quoteMint: p.quoteMint }));
     }
-  }
-  // On a graduated coin, pump-amm wants the pool's creator fees swept first (6081 CreatorFeesNotSwept otherwise,
-  // per the SDK docs); the sweep needs the pool's own coin_creator and quote mint.
-  const before: Transaction["instructions"] = [];
-  if (pool) {
-    const p = await getPumpAmmProgram(rpc as unknown as Connection).account.pool.fetch(pool);
-    before.push(await PUMP_SDK.sweepCreatorFeeInstruction({ payer: creator, mint: m, creator: p.coinCreator, quoteMint: p.quoteMint }));
   }
   const create = await PUMP_SDK.createFeeSharingConfig({ creator, mint: m, pool });
   const update = await PUMP_SDK.updateFeeShares({
