@@ -52,7 +52,7 @@ export interface BuybackOptions {
   infraTargetLamports: number;
   keepLamports: number;
   minLamports: number;
-  /** Percent slippage allowed on the buy. TODO(verify): unit of the SDK's `slippage` parameter. */
+  /** Percent slippage allowed on the buy (the SDK multiplies by 1 + slippage/100). */
   slippage: number;
 }
 

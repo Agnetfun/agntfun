@@ -90,6 +90,16 @@ export class ActionGateway implements GatewayClient {
       return { stage: "allowlist", reason: "merge requires passing tests" };
     if (i.branch === "main" && !i.merge)
       return { stage: "allowlist", reason: "direct push to main" };
+    // The starter files of a new remote pass the same path, symlink and secret checks as the session's own patch.
+    if (i.base) {
+      const b = inspectPatch(i.base);
+      if (b.symlink) return { stage: "allowlist", reason: "symlinks not allowed" };
+      for (const f of b.files) {
+        const bad = badPath(f);
+        if (bad) return { stage: "allowlist", reason: bad };
+      }
+      if (scanText(i.base).length) return { stage: "secrets", reason: "secret-like content" };
+    }
     const info = inspectPatch(i.patch);
     for (const f of info.files) {
       const bad = badPath(f);

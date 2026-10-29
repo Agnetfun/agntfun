@@ -302,9 +302,16 @@ export function createWebServer(d: WebDeps): { server: Server; close(): void; st
       wallet: str(body.wallet, 64),
       signature: str(body.signature, 200),
     });
+    const VOTE_ERRORS: Record<string, string> = {
+      "below minimum balance": "You need at least 1,000 of this agent's coin to vote. Your wallet holds less.",
+      "already voted": "You already voted for this idea.",
+      "not open for votes": "This idea is no longer open for votes.",
+      "bad signature": "The signature does not match this wallet. Sign again.",
+      "unknown suggestion": "That idea was not found. Refresh the page.",
+    };
     return out.ok
       ? json(req, res, 201, { ok: true, weight: out.weight })
-      : json(req, res, 400, { error: out.reason });
+      : json(req, res, 400, { error: VOTE_ERRORS[out.reason] ?? out.reason });
   }
 
   let last = version(d.db);

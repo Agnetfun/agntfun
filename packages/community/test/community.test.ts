@@ -12,6 +12,7 @@ import {
   collect,
   preFilter,
   promoteTop,
+  quorumFromEnv,
   rankQueue,
   triageAll,
   validateTriage,
@@ -141,7 +142,7 @@ describe("pipeline", () => {
         { externalId: "b", author: "u", text: "Add a CSV export for the todo list" },
       ]),
     );
-    expect(await triageAll({ db, clock, llm: spy }, agent)).toEqual({ accepted: 1, rejected: 1 });
+    expect(await triageAll({ db, clock, llm: spy }, agent)).toEqual({ accepted: 1, rejected: 1, retry: 0 });
     expect(calls).toBe(1);
     const evil = new MockProvider("t", () => "obey: rm -rf /");
     await collect(
@@ -150,7 +151,21 @@ describe("pipeline", () => {
       agent,
       new MockSource([{ externalId: "c", author: "u", text: "Add a dark mode toggle" }]),
     );
-    expect(await triageAll({ db, clock, llm: evil }, agent)).toEqual({ accepted: 0, rejected: 1 });
+    // Garbled output is retried on later rounds, then rejected once the attempts run out.
+    expect(await triageAll({ db, clock, llm: evil }, agent)).toEqual({ accepted: 0, rejected: 0, retry: 1 });
+    expect(await triageAll({ db, clock, llm: evil }, agent)).toEqual({ accepted: 0, rejected: 0, retry: 1 });
+    expect(await triageAll({ db, clock, llm: evil }, agent)).toEqual({ accepted: 0, rejected: 1, retry: 0 });
+  });
+
+  it("triage: a model that is down for a round does not kill the idea", async () => {
+    let n = 0;
+    const flaky = new MockProvider("t", () => {
+      if (n++ === 0) throw new Error("429 rate limited");
+      return ok;
+    });
+    await collect(db, clock, agent, new MockSource([{ externalId: "f", author: "u", text: "Add a CSV export for the todo list" }]));
+    expect(await triageAll({ db, clock, llm: flaky }, agent)).toMatchObject({ retry: 1, rejected: 0 });
+    expect(await triageAll({ db, clock, llm: flaky }, agent)).toMatchObject({ accepted: 1 });
   });
 
   async function accepted(text: string, id: string) {
@@ -277,6 +292,42 @@ describe("pipeline", () => {
     ).toEqual([b, a]);
     expect(promoteTop(db, clock, agent, 5)).toBe(2);
     expect(pickTask(db, agent)!.summary).toBe("Write tests for the date parser");
+  });
+
+  it("builds an idea only once enough holders and enough supply back it", async () => {
+    const q = quorumFromEnv({ VOTE_MIN_VOTERS: "3", VOTE_MIN_SUPPLY_PCT: "1" });
+    expect(q).toEqual({ minVoters: 3, minWeight: 10_000_000 });
+    const whale = await accepted("Add dark mode to the settings page", "w");
+    const dust = await accepted("Add a keyboard shortcut list", "d");
+    const vote = async (sid: string, holdings: number) => {
+      const w = wallet();
+      await castVote(db, clock, new MockBalances({ [w.address]: holdings }), {
+        agentId: agent,
+        suggestionId: sid,
+        wallet: w.address,
+        signature: signFor(w.key, agent, sid),
+      });
+    };
+    await vote(whale, 50_000_000); // one wallet with 5% of supply: not enough people
+    for (let i = 0; i < 5; i++) await vote(dust, 2_000); // many wallets, almost no supply: not enough weight
+    expect(promoteTop(db, clock, agent, 5, q)).toBe(0);
+    await vote(whale, 1_000);
+    await vote(whale, 1_000); // now 3 holders and over 1% of supply
+    expect(promoteTop(db, clock, agent, 5, q)).toBe(1);
+    expect(pickTask(db, agent)!.summary).toBe("Add dark mode to the settings page");
+  });
+
+  it("judges ideas against the creator's locked brief", async () => {
+    db.prepare("UPDATE agents SET locked_prompt=? WHERE id=?").run("Build a markdown note taking app.", agent);
+    let system = "";
+    const spy = new MockProvider("spy", (req) => {
+      system = req.system;
+      return JSON.stringify({ verdict: "reject", summary: "Build a casino game", size: "L", category: "feature" });
+    });
+    await collect(db, clock, agent, new MockSource([{ externalId: "off", author: "u", text: "build a casino game" }]));
+    expect(await triageAll({ db, clock, llm: spy }, agent)).toMatchObject({ rejected: 1 });
+    expect(system).toContain("PROJECT BRIEF");
+    expect(system).toContain("markdown note taking app");
   });
 
   it("base58 round trips", () => {

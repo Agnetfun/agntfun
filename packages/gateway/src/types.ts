@@ -10,6 +10,8 @@ export const GitPushIntent = z.object({
   branch: z.string().min(1).max(100),
   headSha: z.string().regex(/^[0-9a-f]{7,40}$/),
   patch: z.string().max(2_000_000),
+  /** The workspace's main as a patch from an empty tree: the first commit of a brand new remote (starter files). */
+  base: z.string().max(200_000).default(""),
   testReport: z.object({ passed: z.boolean(), summary: z.string().max(500).default("") }),
   merge: z.boolean().default(false),
   commitMessage: z.string().max(300).default(""),

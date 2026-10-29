@@ -153,7 +153,7 @@ export class Treasury {
 
   runwayDays(agentId: string): number {
     const burn = this.burnPerDay(agentId);
-    return burn === 0 ? Infinity : this.balanceCents(agentId) / burn;
+    return burn === 0 ? Infinity : Math.max(0, this.balanceCents(agentId)) / burn;
   }
 
   /** Asked before every session. Nothing spends money without passing this. */

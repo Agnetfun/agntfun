@@ -12,3 +12,4 @@ export * from "./web-launch";
 export * from "./fees";
 export * from "./wallet-policy";
 export * from "./buyback";
+export * from "./trade";

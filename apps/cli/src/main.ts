@@ -2,7 +2,7 @@ import { boot, openWorkspace, sandboxModeFromEnv } from "@devagent/app";
 import { ConfigError, MODEL_CHOICES, systemClock, type ModelChoice } from "@devagent/core";
 import { createAgent, listAgents } from "@devagent/db";
 import { ActionGateway, adaptersFromEnv } from "@devagent/gateway";
-import { publishSession } from "@devagent/publisher";
+import { maxPostCentsFromEnv, publishSession } from "@devagent/publisher";
 import { runSession, syncTasksFromFile } from "@devagent/runner";
 
 const [cmd, ...rest] = process.argv.slice(2);
@@ -41,7 +41,7 @@ async function agentRun() {
   const adapters = adaptersFromEnv(db); // VCS_MODE / SOCIAL_MODE pick local, real or mock
   const gateway = new ActionGateway(db, systemClock, app.kill, adapters.vcs, adapters.social);
   const published = await publishSession(
-    { db, clock: systemClock, gateway, workspace, maxPostCents: 25 },
+    { db, clock: systemClock, gateway, workspace, maxPostCents: maxPostCentsFromEnv() },
     r,
   );
   console.log(

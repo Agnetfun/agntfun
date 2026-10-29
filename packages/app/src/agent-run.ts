@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { systemClock } from "@devagent/core";
 import type { GatewayClient } from "@devagent/gateway";
-import { publishSession } from "@devagent/publisher";
+import { maxPostCentsFromEnv, publishSession } from "@devagent/publisher";
 import { runSession } from "@devagent/runner";
 import {
   DockerWorkspace,
@@ -40,9 +40,10 @@ export function makeRunOnce(app: Booted, gateway: GatewayClient, mode: SandboxMo
       limits: app.config.session,
       workspace,
       isHalted: () => app.kill.isHalted(agentId),
+      coding: process.env.CODING_MODE === "pro" ? "pro" : "basic",
     });
     const published = await publishSession(
-      { db: app.db, clock: systemClock, gateway, workspace, maxPostCents: 25 },
+      { db: app.db, clock: systemClock, gateway, workspace, maxPostCents: maxPostCentsFromEnv() },
       r,
     );
     return { sessionId: r.sessionId, llmCents: r.costCents, postCents: published.costCents };

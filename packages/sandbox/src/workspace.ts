@@ -11,6 +11,9 @@ import {
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 
+/** git's well known hash of the empty tree (SHA-1 repositories). */
+const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+
 export const run = promisify(execFile);
 
 export class WorkspaceError extends Error {
@@ -33,6 +36,10 @@ export interface Workspace {
   headSha(): Promise<string>;
   /** Unified diff of the current branch against main. This is what the gateway scans and pushes. */
   patchSinceMain(): Promise<string>;
+  /** The folder holding the agent's files (no .git inside); pro coding mode pins every tool path to it. */
+  readonly root?: string;
+  /** main as a patch from an empty tree (starter files), for the first commit of a new remote. */
+  patchOfMain?(): Promise<string>;
   /** Fast forwards main to the current branch. Called after the gateway merged remotely. */
   mergeToMain(): Promise<void>;
   /** Stops anything still running (containers). The files and git history stay. */
@@ -82,6 +89,10 @@ export abstract class GitWorkspace implements Workspace {
     protected work: string,
     protected gitDir: string,
   ) {}
+
+  get root(): string {
+    return this.work;
+  }
 
   protected static async prepare(
     dir: string,
@@ -172,6 +183,10 @@ export abstract class GitWorkspace implements Workspace {
 
   async patchSinceMain(): Promise<string> {
     return this.git("diff", "--no-color", "--no-ext-diff", "main", "HEAD");
+  }
+
+  async patchOfMain(): Promise<string> {
+    return this.git("diff", "--no-color", "--no-ext-diff", EMPTY_TREE, "main");
   }
 
   async mergeToMain(): Promise<void> {

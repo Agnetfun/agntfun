@@ -197,3 +197,131 @@
     transition: none;
   }
 }
+
+/* trade panel: buy and sell from your own wallet */
+.tradep {
+  display: grid;
+  gap: 12px;
+}
+.tradep h2 .ticker {
+  font-size: 20px;
+}
+.tp-side {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: #000000;
+}
+.tp-side button {
+  padding: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 300ms var(--ease),
+    color 300ms var(--ease);
+}
+.tp-side button[data-side="buy"][aria-selected="true"] {
+  background: var(--green);
+  color: #000000;
+}
+.tp-side button[data-side="sell"][aria-selected="true"] {
+  background: var(--red);
+  color: #000000;
+}
+.tp-amt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 1px solid #313131;
+  border-radius: 12px;
+  background: #000000;
+  transition: border-color 300ms var(--ease);
+}
+.tp-amt:focus-within {
+  border-color: var(--text);
+}
+.tp-amt input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 24px;
+  line-height: 32px;
+  font-variant-numeric: tabular-nums;
+}
+.tp-amt b {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 600;
+}
+.tp-quick {
+  display: flex;
+  gap: 8px;
+}
+.tp-quick button,
+.tp-slip-opts button {
+  padding: 4px 12px;
+  border: 1px solid #313131;
+  border-radius: 9999px;
+  background: #1f1f1f;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 16px;
+  cursor: pointer;
+  transition: border-color 300ms var(--ease);
+}
+.tp-quick button:hover,
+.tp-slip-opts button:hover {
+  border-color: #9b9b9b;
+}
+.tp-slip-opts button[aria-pressed="true"] {
+  border-color: var(--text);
+  background: var(--text);
+  color: #000000;
+}
+.tp-out {
+  min-height: 20px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 20px;
+}
+.tp-slip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 20px;
+}
+.tp-slip-opts {
+  display: flex;
+  gap: 4px;
+}
+#market-chart {
+  min-height: 320px;
+}
+/* the panel never grows past its card: every row may shrink */
+.tradep {
+  grid-template-columns: minmax(0, 1fr);
+}
+.tradep > * {
+  min-width: 0;
+}
+.tp-quick button {
+  flex: 1;
+}

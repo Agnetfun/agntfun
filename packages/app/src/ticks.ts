@@ -1,5 +1,5 @@
-import { systemClock } from "@devagent/core";
-import { collect, promoteTop, rankQueue, triageAll } from "@devagent/community";
+import { systemClock, ulid } from "@devagent/core";
+import { collect, promoteTop, quorumFromEnv, rankQueue, triageAll } from "@devagent/community";
 import { listAgents, pickTask, upsertTask } from "@devagent/db";
 import type { Adapters } from "@devagent/gateway";
 import {
@@ -41,14 +41,19 @@ export async function communityTick(app: Booted, adapters: Adapters, env = proce
   for (const a of listAgents(app.db)) {
     if (app.kill.isHalted(a.id)) continue;
     for (const src of adapters.sourcesFor(a.id)) {
+      // Reading X costs money: an agent with nothing in its treasury does not read (and is not charged) until funded.
+      if (src.name === "x" && app.treasury.balanceCents(a.id) <= 0) continue;
       try {
         out.collected += await collect(app.db, systemClock, a.id, src);
+        // The agent pays for its own X reads from its treasury (the platform's X credits are only a float).
+        const bill = src.takeBillableCents();
+        if (bill > 0) app.treasury.spend(a.id, "x_posts", bill, `xread:${ulid()}`);
       } catch (e) {
         app.log.warn({ agent: a.id, err: (e as Error).message }, "community source failed");
       }
     }
     out.accepted += (await triageAll({ db: app.db, clock: systemClock, llm }, a.id)).accepted;
-    out.promoted += promoteTop(app.db, systemClock, a.id, 3);
+    out.promoted += promoteTop(app.db, systemClock, a.id, 3, quorumFromEnv(env));
     if (env.PROMOTE_UNVOTED_WHEN_IDLE === "1" && !pickTask(app.db, a.id)) {
       const top = rankQueue(app.db, a.id).find(
         (r) => (app.db.prepare("SELECT status FROM suggestions WHERE id=?").get(r.id) as { status: string }).status === "accepted",
@@ -63,14 +68,13 @@ export async function communityTick(app: Booted, adapters: Adapters, env = proce
   return out;
 }
 
-/** Chain round: give every agent a wallet, book SOL that reached agent wallets, sample prices of launched coins. */
+/** Chain round: give every agent a wallet, book SOL that reached agent wallets, pay out fees, run the buyback. */
 export function makeChainTick(app: Booted, env = process.env) {
   const rpc = new Connection(rpcUrl(app, env), "confirmed");
   const inflow = new InflowWatcher(app.db, app.treasury, rpc, {
     solUsdCents: Math.round((Number(env.SOL_USD) || 150) * 100),
     pageSize: 25,
   });
-  const prices = new PriceSampler(app.db, systemClock, rpc);
   // Pays out pump.fun creator fees so the agent's share reaches its wallet (needs the private seal key: gateway side).
   const priv = env.SEAL_PRIVATE_KEY;
   const fees = priv
@@ -103,7 +107,7 @@ export function makeChainTick(app: Booted, env = process.env) {
   const buybackEveryMs = (Number(env.BUYBACK_EVERY_HOURS) || 24) * 3_600_000;
   let lastBuyback = 0;
   return async () => {
-    const out = { wallets: 0, booked: 0, samples: 0, feePayouts: 0, buyback: "" };
+    const out = { wallets: 0, booked: 0, feePayouts: 0, buyback: "" };
     if (buyback && Date.now() - lastBuyback >= buybackEveryMs) {
       lastBuyback = Date.now();
       try {
@@ -125,7 +129,12 @@ export function makeChainTick(app: Booted, env = process.env) {
     } catch (e) {
       app.log.warn({ err: (e as Error).message }, "wallet watch failed");
     }
-    out.samples = await prices.sampleAll();
     return out;
   };
+}
+
+/** Price round, on its own fast timer: one account read per launched coin, so charts follow trades made anywhere. */
+export function makePriceTick(app: Booted, env = process.env) {
+  const prices = new PriceSampler(app.db, systemClock, new Connection(rpcUrl(app, env), "confirmed"));
+  return () => prices.sampleAll();
 }

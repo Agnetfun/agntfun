@@ -1,6 +1,7 @@
 import { redactSecrets, type Clock, type LlmConfig, type SessionLimits } from "@devagent/core";
 import {
-  PRICES,
+  isFreeModel,
+  priceFor,
   BudgetExceeded,
   MeteredProvider,
   SessionBudget,
@@ -22,6 +23,8 @@ import {
 import { parseAction, type Action } from "./actions";
 import { buildSystemPrompt, taskMessage } from "./prompt";
 import { LiveScreen } from "./live";
+import { buildMemory } from "./memory";
+import { runPro, type ProRunArgs } from "./pro";
 import type { Workspace } from "@devagent/sandbox";
 
 export interface RunSessionArgs {
@@ -34,6 +37,10 @@ export interface RunSessionArgs {
   /** Test hook. Normally the provider comes from the agent's model choice. */
   provider?: LlmProvider;
   isHalted?: () => boolean;
+  /** "pro" runs the Claude Agent SDK harness (real mode, opus only); "basic" is the one action loop. */
+  coding?: "basic" | "pro";
+  /** Test hook for pro mode. */
+  proQuery?: ProRunArgs["queryFn"];
 }
 
 export interface SessionResult {
@@ -105,7 +112,7 @@ export async function runSession(a: RunSessionArgs): Promise<SessionResult> {
     a.isHalted,
   );
   const inner = a.provider ?? createProvider(agent.model, a.llm);
-  const llm = new MeteredProvider(inner, budget, PRICES[agent.model], (r) =>
+  const llm = new MeteredProvider(inner, budget, priceFor(agent.model, inner.model), (r) =>
     insertLlmCall(db, clock, { ...r, sessionId, agentId: agent.id }),
   );
 
@@ -115,6 +122,7 @@ export async function runSession(a: RunSessionArgs): Promise<SessionResult> {
   let testsPassed: boolean | null = null;
   let endReason = "finished";
   let finishSummary = "";
+  let proCost: { costMicroUsd: number; tokensIn: number; tokensOut: number; turns: number } | null = null;
   const messages: Array<{ role: "user" | "assistant"; content: string }> = [
     { role: "user", content: taskMessage(task.summary) },
   ];
@@ -157,8 +165,54 @@ export async function runSession(a: RunSessionArgs): Promise<SessionResult> {
   screen.start(task.summary);
   try {
     await workspace.startBranch(branch);
+    // Memory: what earlier sessions did, as data appended to the first message.
+    const memory = await buildMemory(db, agent.id, workspace);
+    if (memory) {
+      messages[0] = { role: "user", content: `${messages[0]!.content}\n\n${memory}` };
+      const recalled = (memory.match(/^- /gm) ?? []).length;
+      emit("session.memory", { chars: memory.length, sessions: recalled });
+      if (recalled) screen.recall(recalled);
+    }
+    const pro = a.coding === "pro" && agent.model === "opus" && (a.llm.mode === "real" || !!a.proQuery);
+    if (pro) {
+      const r = await runPro({
+        workspace,
+        rules: system,
+        prompt: messages[0]!.content,
+        apiKey: a.llm.anthropic.apiKey ?? "",
+        via: a.llm.anthropic.via,
+        modelId: a.llm.anthropic.modelId,
+        effort: a.llm.anthropic.effort,
+        limits: a.limits,
+        screen,
+        isHalted: a.isHalted,
+        onTests: (ok) => (testsPassed = ok),
+        onWrite: () => (testsPassed = null), // code changed since the last test run
+        queryFn: a.proQuery,
+      });
+      if (isFreeModel(a.llm.anthropic.modelId)) r.costMicroUsd = 0; // the SDK's estimate assumes a paid model
+      proCost = r;
+      insertLlmCall(db, clock, {
+        sessionId,
+        agentId: agent.id,
+        provider: "agent-sdk",
+        model: a.llm.anthropic.modelId,
+        tokensIn: r.tokensIn,
+        tokensOut: r.tokensOut,
+        costMicroUsd: r.costMicroUsd,
+        latencyMs: r.durationMs,
+      });
+      endReason = r.endReason;
+      finishSummary = r.summary;
+      emit("session.pro", { turns: r.turns, endReason: r.endReason, costMicroUsd: r.costMicroUsd });
+      const sha = await workspace.commitAll(`feat: ${task.summary}`.slice(0, 120));
+      if (sha) {
+        commits.push(sha);
+        screen.commit(`feat: ${task.summary}`.slice(0, 120), sha);
+      }
+    }
     let bad = 0;
-    for (;;) {
+    for (; !pro; ) {
       budget.step();
       const res = await llm.complete({ system, messages, maxTokens: 2000 });
       const parsed = parseAction(res.text);
@@ -219,13 +273,13 @@ export async function runSession(a: RunSessionArgs): Promise<SessionResult> {
   const tests = testsPassed === null ? "not run" : testsPassed ? "passing" : "failing";
   const summary =
     finishSummary ||
-    `Session ended (${endReason}) after ${budget.steps} step(s): ${commits.length} commit(s), tests ${tests}.`;
-  const costCents = microUsdToCents(budget.microUsd);
+    `Session ended (${endReason}) after ${proCost ? proCost.turns : budget.steps} step(s): ${commits.length} commit(s), tests ${tests}.`;
+  const costCents = microUsdToCents(proCost ? proCost.costMicroUsd : budget.microUsd);
   endSession(db, clock, sessionId, {
     endReason,
     summary: redactSecrets(summary).slice(0, 1000),
-    tokensIn: budget.tokensIn,
-    tokensOut: budget.tokensOut,
+    tokensIn: proCost ? proCost.tokensIn : budget.tokensIn,
+    tokensOut: proCost ? proCost.tokensOut : budget.tokensOut,
     costCents,
   });
   setAgentState(db, agent.id, endReason === "killed" ? "halted" : "sleeping");
@@ -243,7 +297,7 @@ export async function runSession(a: RunSessionArgs): Promise<SessionResult> {
     commits,
     testsPassed,
     costCents,
-    tokens: budget.tokens,
-    steps: budget.steps,
+    tokens: proCost ? proCost.tokensIn + proCost.tokensOut : budget.tokens,
+    steps: proCost ? proCost.turns : budget.steps,
   };
 }

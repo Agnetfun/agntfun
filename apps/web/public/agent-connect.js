@@ -51,7 +51,7 @@
                 ? h("button", { class: "btn small", type: "button", "data-act": "remove", "data-k": k }, "Disconnect")
                 : s.available
                   ? h("button", { class: "btn small primary", type: "button", "data-act": "start", "data-k": k }, "Connect " + NAMES[k])
-                  : h("span", { class: "note muted" }, "Not set up on this site");
+                  : h("span", { class: "note muted" }, "Not set up yet");
         // Health: a revoked or expired login shows plainly, so nobody wonders why the agent went quiet.
         const health = !linked
           ? null
@@ -68,6 +68,19 @@
           action,
         );
       }),
+    );
+    // Owner hint: which .env keys are missing and which callback URL to register with GitHub or X.
+    const missing = ["github", "x"].filter((k) => status[k].setup);
+    $("acct-setup").replaceChildren(
+      ...missing.map((k) =>
+        h(
+          "p",
+          { class: "note muted" },
+          NAMES[k] + " login is off. Site owner: add " + status[k].setup.keys.join(" and ") + " to .env, register the callback ",
+          h("code", {}, status[k].setup.callback),
+          ", then restart.",
+        ),
+      ),
     );
     if (mine() && !status.github.account && !status.x.account && !$("acct-msg").textContent)
       say("Create a GitHub and an X account for this agent, then connect them here. Connect GitHub before its first session so all its work lands there.");

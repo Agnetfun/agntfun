@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import type { Clock } from "@devagent/core";
@@ -16,6 +16,7 @@ import {
 } from "@devagent/launch";
 import { PublicKey, type Connection } from "@solana/web3.js";
 import type { ConnectRoutes, Redirect } from "./connect-routes";
+import type { TradeRoutes } from "./trade-routes";
 
 export interface DappDeps {
   db: Db;
@@ -28,6 +29,8 @@ export interface DappDeps {
   socialMode: string;
   /** Connect X / GitHub for an agent's own accounts. */
   connect?: ConnectRoutes;
+  /** Buy and sell the agent coin from the user wallet. */
+  trade?: TradeRoutes;
   /** The platform's own token (buyback and burn target), once launched. */
   platformToken?: { mint: string; symbol: string };
 }
@@ -50,6 +53,12 @@ export function createDappRoutes(d: DappDeps) {
   // The browser build of web3.js deserializes and signs transactions with the user's wallet (served locally, CSP self).
   const req = createRequire(import.meta.url);
   const web3Browser = readFileSync(join(dirname(req.resolve("@solana/web3.js")), "index.iife.min.js"));
+  // TradingView Lightweight Charts (pinned 4.2.3), served from this site so the CSP stays script-src 'self'.
+  const chartsBase = dirname(req.resolve("lightweight-charts"));
+  const chartsFile = "lightweight-charts.standalone.production.js";
+  const chartsBrowser = readFileSync(
+    existsSync(join(chartsBase, "dist", chartsFile)) ? join(chartsBase, "dist", chartsFile) : join(chartsBase, chartsFile),
+  );
   const balances = new Map<string, { at: number; lamports: number }>();
 
   const live = (agentId: string) =>
@@ -67,10 +76,12 @@ export function createDappRoutes(d: DappDeps) {
       "/api/launch/submit": [20, 3_600_000],
       "/api/suggest": [10, 3_600_000],
       ...d.connect?.postPaths,
+      ...d.trade?.postPaths,
     } as Record<string, [number, number]>,
 
     async post(path: string, body: Record<string, unknown>, client: string): Promise<Reply> {
       if (d.connect && Object.hasOwn(d.connect.postPaths, path)) return d.connect.post(path, body);
+      if (d.trade && Object.hasOwn(d.trade.postPaths, path)) return d.trade.post(path, body);
       const agentId = str(body.agentId, 40);
       if (!live(agentId)) return bad("Agent not found.", 404);
       try {
@@ -101,10 +112,14 @@ export function createDappRoutes(d: DappDeps) {
       if (cb && d.connect) return d.connect.callback(cb[1] as "x" | "github", query);
       const cs = /^\/api\/agents\/([0-9A-HJKMNP-TV-Z]{26})\/connections$/.exec(path);
       if (cs) return Promise.resolve(live(cs[1]!) ? ok(d.connect ? d.connect.status(cs[1]!) : {}) : bad("Agent not found.", 404));
+      const ps = /^\/api\/agents\/([0-9A-HJKMNP-TV-Z]{26})\/position$/.exec(path);
+      if (ps && d.trade) return live(ps[1]!) ? d.trade.position(ps[1]!, query.get("wallet") ?? "") : Promise.resolve(bad("Agent not found.", 404));
       const lv = /^\/api\/agents\/([0-9A-HJKMNP-TV-Z]{26})\/live$/.exec(path);
       if (lv) return Promise.resolve(this.live(lv[1]!, query.get("session") ?? "", Number(query.get("after")) || 0));
       if (path === "/vendor/web3.js")
         return Promise.resolve({ status: 200, type: "text/javascript; charset=utf-8", body: web3Browser });
+      if (path === "/vendor/charts.js")
+        return Promise.resolve({ status: 200, type: "text/javascript; charset=utf-8", body: chartsBrowser });
       if (path === "/api/config")
         return Promise.resolve(
           ok({ cluster: d.launch.cluster, vcs: d.vcsMode, social: d.socialMode, platformToken: d.platformToken ?? null }),

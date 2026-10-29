@@ -6,6 +6,7 @@ import { DEFAULT_DEPLOY } from "@devagent/platform";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { appsFromEnv } from "@devagent/gateway";
 import { createConnectRoutes } from "./connect-routes";
+import { createTradeRoutes } from "./trade-routes";
 import { createDappRoutes } from "./dapp-routes";
 import { createWebServer } from "./server";
 
@@ -57,7 +58,15 @@ const dapp = createDappRoutes({
   platformToken: env.PLATFORM_TOKEN_MINT
     ? { mint: env.PLATFORM_TOKEN_MINT, symbol: env.PLATFORM_TOKEN_SYMBOL || "TOKEN" }
     : undefined,
-  connect: createConnectRoutes({ db: app.db, clock: systemClock, apps: appsFromEnv(env), sealPublicKey: env.SEAL_PUBLIC_KEY }),
+  trade: createTradeRoutes({ db: app.db, clock: systemClock, rpc }),
+  connect: createConnectRoutes({
+    db: app.db,
+    clock: systemClock,
+    apps: appsFromEnv(env),
+    sealPublicKey: env.SEAL_PUBLIC_KEY,
+    // Same base the OAuth redirect uses, so the setup hint shows the exact callback to register.
+    publicUrl: (env.PUBLIC_URL || `http://${env.WEB_HOST || "127.0.0.1"}:${env.WEB_PORT || 3000}`).replace(/\/+$/, ""),
+  }),
 });
 const web = createWebServer({
   db: app.db,

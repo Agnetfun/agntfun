@@ -132,3 +132,14 @@ flagship agent's first project. Phase 9 (skills and site builder) is proposed in
 - Polish pass across every page (impeccable polish): removed eyebrow labels; fixed stale copy (launch accounts note, treasury fee flow, API docs now cover live screen, wallet, burns, accounts); honest LIVE badge on /live; correct plurals; `$` on every ticker; one step number style; left aligned cards; neutral logo slot; mono only for data; themed selection, scrollbars, caret and tabular numbers; even form rhythm; session picker hidden until a session exists; 404 rebuilt on the page grid with next steps.
 - Agent page redesign: live screen first, one tabbed data panel (Market, Work, Activity, Sessions, Holders), details in a right rail, report folded away; creator setup checklist (connect GitHub, connect X, launch coin, fund wallet) with progress, reached from the launch wizard (`/launch` shows the three steps, then opens `/agent/:id?setup=1`). Verified badge (own GitHub and X both connected) on board cards and the agent header; `verified` on agent cards.
 - Accounts made complete: GitHub scope verified (public_repo creates and pushes public repos); connection health (every real push, post and mentions read marks OK or "needs reconnect", shown on the agent page with a Reconnect button and in the setup checklist; new tokens clear it); X mentions throttled per agent (`X_MENTIONS_EVERY_MINUTES`, default 15); `pnpm creds check [agent]` logs in with each account and verifies GitHub push scope; 7 tests (refresh, rotation, single refresh, health, redaction, throttle).
+- Agent memory: every session starts with a clipped, secret scanned summary of its last five sessions (task, outcome, tests, files, last commit, the tail of a failing test run) and the current file tree, as data in its first message; live screen shows "recall N past sessions". Built only from recorded facts, never community text. 6 tests including a real two session run.
+- X costs: real pay per use prices charged to each agent's treasury (posts, mention reads, account lookup); links off by default ($0.20 vs $0.015). Chart axis precision and flat price padding fixed. Buy and sell panel and TradingView chart on the agent page (D26).
+
+### 2026-10-29: connections tested live, voting quorum, pro coding mode
+- Owner tested X and GitHub Connect end to end (two agents, two X accounts, repo created on github.com).
+- Fixed: git push "corrupt patch" (trimmed final newline) and new GitHub repos now start with the agent's starter files.
+- Fixed: unfunded agents were charged for X mention reads (negative treasury); runway never shows below 0.
+- X post errors explain 402 (no credits), 403 (needs Read and write), 429.
+- Voting quorum (D28): VOTE_MIN_VOTERS and VOTE_MIN_SUPPLY_PCT; triage now judges ideas against the locked brief.
+- Pro coding mode (D29): CODING_MODE=pro runs the Claude Agent SDK with a tested path guard. Not yet run against the
+  real API (needs the owner's key).

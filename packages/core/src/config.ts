@@ -17,6 +17,9 @@ const schema = z
     ANTHROPIC_API_KEY: z.string().min(1).optional(),
     ANTHROPIC_MODEL_ID: z.string().min(1).default("claude-opus-5-5"),
     ANTHROPIC_EFFORT: z.enum(["low", "medium", "high"]).default("medium"),
+    // OpenRouter (credits can be bought with crypto): used for Claude when ANTHROPIC_API_KEY is not set.
+    OPENROUTER_API_KEY: z.string().min(1).optional(),
+    OPENROUTER_MODEL_ID: z.string().min(1).default("anthropic/claude-opus-5.5"),
     OPENAI_API_KEY: z.string().min(1).optional(),
     // TODO(verify): base URL and the Astra model id against OpenAI's own docs.
     OPENAI_BASE_URL: z.string().url().default("https://api.openai.com/v1"),
@@ -36,11 +39,11 @@ const schema = z
         message: "mainnet-beta needs REAL_MONEY=1 (launches and agent wallets use real SOL)",
       });
     }
-    if (v.LLM_MODE === "real" && !v.ANTHROPIC_API_KEY && !v.OPENAI_API_KEY) {
+    if (v.LLM_MODE === "real" && !v.ANTHROPIC_API_KEY && !v.OPENROUTER_API_KEY && !v.OPENAI_API_KEY) {
       ctx.addIssue({
         code: "custom",
         path: ["LLM_MODE"],
-        message: "real mode needs ANTHROPIC_API_KEY or OPENAI_API_KEY",
+        message: "real mode needs ANTHROPIC_API_KEY, OPENROUTER_API_KEY or OPENAI_API_KEY",
       });
     }
   });
@@ -49,7 +52,7 @@ export type Effort = "low" | "medium" | "high";
 
 export interface LlmConfig {
   mode: "mock" | "real";
-  anthropic: { apiKey?: string; modelId: string; effort: Effort };
+  anthropic: { apiKey?: string; modelId: string; effort: Effort; via: "anthropic" | "openrouter"; baseUrl?: string };
   openai: { apiKey?: string; baseUrl: string; modelId: string };
 }
 
@@ -102,11 +105,17 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     heartbeatSeconds: v.HEARTBEAT_SECONDS,
     llm: {
       mode: v.LLM_MODE,
-      anthropic: {
-        apiKey: v.ANTHROPIC_API_KEY,
-        modelId: v.ANTHROPIC_MODEL_ID,
-        effort: v.ANTHROPIC_EFFORT,
-      },
+      // Claude straight from Anthropic, or through OpenRouter's Anthropic compatible endpoint (Bearer auth).
+      anthropic:
+        !v.ANTHROPIC_API_KEY && v.OPENROUTER_API_KEY
+          ? {
+              apiKey: v.OPENROUTER_API_KEY,
+              modelId: v.OPENROUTER_MODEL_ID,
+              effort: v.ANTHROPIC_EFFORT,
+              via: "openrouter" as const,
+              baseUrl: "https://openrouter.ai/api",
+            }
+          : { apiKey: v.ANTHROPIC_API_KEY, modelId: v.ANTHROPIC_MODEL_ID, effort: v.ANTHROPIC_EFFORT, via: "anthropic" as const },
       openai: { apiKey: v.OPENAI_API_KEY, baseUrl: v.OPENAI_BASE_URL, modelId: v.ASTRA_MODEL_ID },
     },
     session: {

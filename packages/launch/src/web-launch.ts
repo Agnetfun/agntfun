@@ -1,6 +1,6 @@
 import type { Clock } from "@devagent/core";
 import { appendEvent, type Db } from "@devagent/db";
-import { Transaction, type Connection } from "@solana/web3.js";
+import { ComputeBudgetProgram, Message, Transaction, type Connection } from "@solana/web3.js";
 import { DEFAULT_SPLIT_BPS, validateSplit, type CurrentRole, type Share } from "./split";
 import { buildCreateTx, buildSplitTx, type Rpc } from "./pumpfun";
 import { getLaunch, recordLaunch } from "./record";
@@ -75,6 +75,31 @@ export function splitFor(db: Db, agentId: string, deployer: string, c: WebLaunch
 
 const messageOf = (b64: string) => Transaction.from(Buffer.from(b64, "base64")).serializeMessage().toString("base64");
 
+const COMPUTE_BUDGET = ComputeBudgetProgram.programId.toBase58();
+/** What a transaction actually does: its fee payer and every non compute budget instruction, in order. */
+function intentOf(tx: Transaction): string {
+  return JSON.stringify({
+    payer: tx.feePayer?.toBase58() ?? null,
+    ixs: tx.instructions
+      .filter((i) => i.programId.toBase58() !== COMPUTE_BUDGET)
+      .map((i) => ({
+        program: i.programId.toBase58(),
+        keys: i.keys.map((k) => `${k.pubkey.toBase58()}:${k.isSigner ? 1 : 0}:${k.isWritable ? 1 : 0}`),
+        data: i.data.toString("base64"),
+      })),
+  });
+}
+
+/**
+ * True when the signed transaction does exactly what the site prepared. Wallets such as Phantom add their own
+ * priority fee (Compute Budget program) instructions before signing; those are the only difference allowed. Any other
+ * added, removed or changed instruction, account, data or fee payer is refused.
+ */
+export function matchesPrepared(preparedMessageB64: string, signed: Transaction): boolean {
+  const prepared = Transaction.populate(Message.from(Buffer.from(preparedMessageB64, "base64")));
+  return intentOf(prepared) === intentOf(signed);
+}
+
 function savePending(db: Db, clock: Clock, agentId: string, step: Step, mint: string, tx: string, split: Share[]) {
   db.prepare(
     "INSERT OR REPLACE INTO pending_launches (agent_id, step, mint, message_b64, split_json, created_at) VALUES (?,?,?,?,?,?)",
@@ -108,7 +133,8 @@ export async function prepareLaunch(
   return { step: "create", mint, tx, split };
 }
 
-async function confirm(rpc: LaunchRpc, signature: string, timeoutMs = 60_000): Promise<void> {
+/** Waits until the network confirms a signature; fails on a rejected transaction or after the timeout. */
+export async function confirmSignature(rpc: Pick<LaunchRpc, "getSignatureStatuses">, signature: string, timeoutMs = 60_000): Promise<void> {
   const end = Date.now() + timeoutMs;
   while (Date.now() < end) {
     const s = (await rpc.getSignatureStatuses([signature])).value[0];
@@ -132,11 +158,11 @@ export async function submitLaunch(
   } catch {
     return fail("That is not a valid signed transaction.");
   }
-  if (tx.serializeMessage().toString("base64") !== p!.message_b64)
+  if (!matchesPrepared(p!.message_b64, tx))
     fail("The signed transaction is not the one this site prepared.");
   if (!tx.verifySignatures()) fail("The transaction is missing a signature.");
   const signature = await rpc.sendRawTransaction(tx.serialize(), { skipPreflight: false });
-  await confirm(rpc, signature);
+  await confirmSignature(rpc, signature);
   db.prepare("DELETE FROM pending_launches WHERE agent_id=? AND step=?").run(agentId, step);
   if (step === "create") {
     recordLaunch(db, clock, {

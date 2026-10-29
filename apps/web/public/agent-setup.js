@@ -100,7 +100,8 @@
     box.hidden = false;
     $("setup-bar").style.transform = "scaleX(" + doneCount / steps.length + ")";
     $("setup-sub").textContent = doneCount + " of " + steps.length + " done. Only you see this.";
-    const next = steps.find((s) => !s.done);
+    // Highlight the first step the creator can actually do now (accounts may not be set up on this site yet).
+    const next = steps.find((s) => !s.done && s.available !== false) || steps.find((s) => !s.done);
     $("setup-list").replaceChildren(
       ...steps.map((s) =>
         h(

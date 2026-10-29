@@ -7,6 +7,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.312",
     "@devagent/core": "workspace:*",
     "@devagent/db": "workspace:*",
     "@devagent/llm": "workspace:*",

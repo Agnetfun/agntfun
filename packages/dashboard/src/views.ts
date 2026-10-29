@@ -1,5 +1,5 @@
 import type { Db } from "@devagent/db";
-import { rankQueue } from "@devagent/community";
+import { COIN_SUPPLY, meetsQuorum, quorumFromEnv, rankQueue } from "@devagent/community";
 import { agentWalletAddress, getLaunch, splitIsSet } from "@devagent/launch";
 import { agentSeries, proofScore, rankAgents, type Sort } from "@devagent/platform";
 import type { Treasury } from "@devagent/treasury";
@@ -195,7 +195,9 @@ export interface AgentDetail extends AgentCard {
     burnPerDayCents: number;
     spent24hCents: number;
   };
-  queue: Array<{ id: string; summary: string; size: string | null; score: number; voters: number }>;
+  queue: Array<{ id: string; summary: string; size: string | null; score: number; voters: number; ready: boolean }>;
+  /** What an idea needs before the agent builds it. */
+  quorum: { minVoters: number; minWeight: number; supply: number };
   recentSessions: Array<{ at: number; endReason: string; costCents: number; tokens: number }>;
   feed: FeedItem[];
   split: Array<{ role: string; shareBps: number }> | null;
@@ -214,6 +216,7 @@ export function agentDetail(db: Db, treasury: Treasury, id: string): AgentDetail
   if (!a || a.removed_at) return undefined;
   const c = card(db, treasury, a);
   const launch = getLaunch(db, id);
+  const quorum = quorumFromEnv();
   return {
     ...c,
     xHandle: (a.x_handle as string | null) ?? null,
@@ -225,7 +228,14 @@ export function agentDetail(db: Db, treasury: Treasury, id: string): AgentDetail
       burnPerDayCents: Math.round(treasury.burnPerDay(id)),
       spent24hCents: treasury.spentLastDay(id),
     },
+    // Ideas the agent already finished leave the queue (their task is done).
     queue: rankQueue(db, id)
+      .filter(
+        (q) =>
+          !db
+            .prepare("SELECT 1 x FROM tasks WHERE agent_id=? AND summary=? AND status='done' LIMIT 1")
+            .get(id, q.summary),
+      )
       .slice(0, 10)
       .map((q) => ({
         id: q.id,
@@ -233,7 +243,9 @@ export function agentDetail(db: Db, treasury: Treasury, id: string): AgentDetail
         size: q.size,
         score: q.score,
         voters: q.voters,
+        ready: meetsQuorum(q, quorum),
       })),
+    quorum: { ...quorum, supply: COIN_SUPPLY },
     recentSessions: (
       db
         .prepare(

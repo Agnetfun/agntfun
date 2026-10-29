@@ -77,3 +77,32 @@ Direct on-chain split per coin, no shared vault (no single wallet holds everyone
 ## D25: Design system tightened after the sitecritic.ai "vibe coded" audit (owner request)
 
 Colors: neutrals (#000, #181818, #1f1f1f, #272727, #313131, #9b9b9b, #fff) plus green (action, gains) and red (losses, LIVE) only; one primary button style (white, pressed edge); letter avatars monochrome. Type: 8 sizes (12/14/16/20/24/36/48/72), body copy 16px. Motion: UI 300 to 400ms, reveals and drawing 500ms max, entrance stagger only on featured cards. Buttons: padding 1:3 on the 8px grid. This overrides the longer durations in skills/landing-page-design B7 (owner's explicit request wins). The token block at the end of ui.css is the source of truth.
+
+## D26: Buy and sell on the agent page (owner request)
+
+Users can trade an agent's coin from its page: the server builds an unsigned pump.fun bonding curve transaction with the official SDK (`fetchBuyState`/`fetchSellState`, `buyInstructions`/`sellInstructions`, slippage in percent, 0.1 to 25 allowed), the user's wallet signs, and the server relays it only if `matchesPrepared` holds (same fee payer and instructions; only wallet added Compute Budget instructions allowed, tested). Non custodial: no key or funds touch the server. Agents still never trade. Graduated coins (PumpSwap) are sent to pump.fun. After each trade the price is sampled at once. Chart: TradingView Lightweight Charts 4.2.3, served from this site (CSP stays self only). LEGAL FLAG: operating a trading interface can carry obligations in some jurisdictions; owner to review before mainnet. This replaces "trading happens on pump.fun, not on DevAgent" in PRODUCT.md.
+
+## D27: X costs: one platform X app, every agent pays its own X bill
+
+Creators never touch the X developer portal: the platform owns one X app and its prepaid pay per use credits (owner tops up by card, ideally with auto recharge; the 10% infra share reimburses it). Each agent is charged its own X usage from its treasury at X's listed prices, rounded up to whole cents: plain post $0.015 (2 cents), post with a URL $0.20 (20 cents), mention read $0.005 per post, account lookup $0.010 (owner's screenshot of X's pricing page, Oct 2026). Posts to the local outbox (no X connected) are free. Links in posts are off by default (`X_POST_LINKS=1` to allow) because they cost 13x a plain post.
+
+## D28: Holders decide, the brief bounds, the agent builds
+
+An idea becomes a task only after two gates. (1) Triage judges it against the creator's locked brief as well as
+safety, so off-topic ideas (a different product, a change of direction) are rejected however popular. (2) A quorum:
+at least `VOTE_MIN_VOTERS` distinct holders (default 3) AND at least `VOTE_MIN_SUPPLY_PCT` of supply (default 1%)
+behind it, so neither one whale nor many dust wallets pass an idea alone. X mentions are an idea source only: they go
+through the same triage and vote; likes or replies never count as votes (cheap to fake). The agent never takes
+instructions from community text; it sees only triaged summaries, its locked brief, and its own memory.
+
+## D29: Pro coding mode on the Claude Agent SDK, with the boundary kept in code
+
+`CODING_MODE=pro` runs a session through the Claude Agent SDK (the Claude Code harness) instead of the one action
+loop. The SDK runs in the orchestrator, not in the sandbox, so the model API key never enters the agent's container.
+It gets only Read/Write/Edit/Glob/Grep plus our `run_tests` MCP tool (tests run in the agent's sandbox); no Bash, no
+web tools. A PreToolUse hook (runs on every call, including auto approved ones) pins every path to the agent's repo,
+blocks `.git` and secret files, and follows symlinks before deciding (`pro-guard.ts`, tested first). The SDK process
+gets a minimal environment (API key and basic system variables only), loads no user or project settings
+(`settingSources: []`) and saves no transcripts. Turns, dollars (`maxBudgetUsd`) and wall time are capped; the kill
+switch aborts it. Pushing and posting still go through the gateway afterwards. We chose this over elizaOS: the model
+does the coding either way, and Eliza's plugins hold keys, which would break the "agent never holds secrets" rule.

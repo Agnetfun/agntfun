@@ -34,6 +34,21 @@ describe("parseAction", () => {
     const r = parseAction('Sure!\n```json\n{"action":"run_tests"}\n```');
     expect(r).toEqual({ ok: true, action: { action: "run_tests" } });
   });
+
+  it("accepts an open model's native tool call markup, taking only the first call", () => {
+    // Exactly what a free OpenRouter model sent in a real session.
+    const r = parseAction(
+      "<tool_call>read_file<arg_key>path</arg_key><arg_value>package.json</arg_value></tool_call><tool_call>list_dir<arg_key>path</arg_key><arg_value>src</arg_value></tool_call>",
+    );
+    expect(r).toEqual({ ok: true, action: { action: "read_file", path: "package.json" } });
+    const w = parseAction(
+      "<tool_call>write_file<arg_key>path</arg_key><arg_value>src/a.js</arg_value><arg_key>content</arg_key><arg_value>module.exports = { a: 1 };\n</arg_value></tool_call>",
+    );
+    expect(w).toEqual({ ok: true, action: { action: "write_file", path: "src/a.js", content: "module.exports = { a: 1 };\n" } });
+    // Markup goes through the same schema: unknown actions and missing fields are still refused.
+    expect(parseAction("<tool_call>run_shell<arg_key>cmd</arg_key><arg_value>rm -rf /</arg_value></tool_call>").ok).toBe(false);
+    expect(parseAction("<tool_call>read_file</tool_call>").ok).toBe(false);
+  });
   it("rejects unknown actions and bad json", () => {
     expect(parseAction('{"action":"shell","cmd":"ls"}').ok).toBe(false);
     expect(parseAction("{nope").ok).toBe(false);
@@ -156,5 +171,26 @@ describe("runSession", () => {
     const r = await runSession({ db, clock, agentId, llm: cfg.llm, limits, workspace: await ws() });
     expect(r.endReason).toBe("no_task");
     expect(rows("SELECT * FROM sessions")).toHaveLength(0);
+  });
+});
+
+describe("agent memory in a real session", () => {
+  it("the second session's first message remembers the first session", async () => {
+    const w = await ws();
+    await runSession({ db, clock, agentId, llm: cfg.llm, limits, workspace: w });
+    clock.advance(60_000);
+    upsertTask(db, clock, { agentId, source: "file", summary: "Add product helper" });
+    const seen: string[] = [];
+    const recorder = new MockProvider("rec", (req, n) => {
+      if (n === 0) seen.push(req.messages[0]!.content);
+      return JSON.stringify({ action: "finish", summary: "checked memory" });
+    });
+    await runSession({ db, clock, agentId, llm: cfg.llm, limits, workspace: w, provider: recorder });
+    expect(seen[0]).toContain("TASK: Add product helper");
+    expect(seen[0]).toContain("MEMORY");
+    expect(seen[0]).toContain("Add sum helper");
+    expect(seen[0]).toContain("tests passing");
+    expect(seen[0]).toContain("src/add-sum-helper.js");
+    expect(rows("SELECT kind FROM live_frames WHERE kind='recall'")).toHaveLength(1);
   });
 });

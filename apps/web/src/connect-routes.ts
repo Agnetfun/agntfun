@@ -9,6 +9,7 @@ export interface ConnectDeps {
   clock: Clock;
   apps: Partial<Record<CredentialKind, OAuthApp>>;
   sealPublicKey?: string;
+  publicUrl?: string;
 }
 export type Redirect = { status: 302; redirect: string };
 
@@ -41,9 +42,17 @@ export function createConnectRoutes(d: ConnectDeps) {
 
     status(agentId: string) {
       const c = connectionHealth(d.db, agentId);
+      // `setup` tells the site owner what is missing; it holds env key names and the public callback URL only.
+      const setup = (k: CredentialKind) =>
+        d.apps[k]
+          ? undefined
+          : {
+              keys: k === "x" ? ["X_CLIENT_ID", "X_CLIENT_SECRET"] : ["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"],
+              callback: `${d.publicUrl ?? "http://127.0.0.1:3000"}/oauth/callback/${k}`,
+            };
       return {
-        github: { ...c.github, available: !!d.apps.github },
-        x: { ...c.x, available: !!d.apps.x },
+        github: { ...c.github, available: !!d.apps.github, setup: setup("github") },
+        x: { ...c.x, available: !!d.apps.x, setup: setup("x") },
       };
     },
 

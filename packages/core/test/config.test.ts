@@ -19,7 +19,7 @@ describe("loadConfig", () => {
       loadConfig({ DB_PATH: "x", ANTHROPIC_API_KEY: "" }).llm.anthropic.apiKey,
     ).toBeUndefined();
     expect(() => loadConfig({ DB_PATH: "x", LLM_MODE: "real" })).toThrow(
-      /needs ANTHROPIC_API_KEY or OPENAI_API_KEY/,
+      /needs ANTHROPIC_API_KEY, OPENROUTER_API_KEY or OPENAI_API_KEY/,
     );
     expect(loadConfig({ DB_PATH: "x", LLM_MODE: "real", OPENAI_API_KEY: "k" }).llm.mode).toBe(
       "real",

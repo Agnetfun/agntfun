@@ -23,6 +23,11 @@
   let market = null;
   let agent = null;
   let cfg = {};
+  // Share of supply: 0.4%, 1%, 0.05%; small shares keep a second digit so progress still shows.
+  const share = (f) => {
+    const v = f * 100;
+    return (v >= 1 || v === 0 ? +v.toFixed(1) : +v.toPrecision(2)) + "%";
+  };
   fetch("/api/config")
     .then((r) => r.json())
     .then((c) => {
@@ -176,11 +181,17 @@
       fmt(last.c) +
       "  Vol " +
       usd(last.v);
-    box.replaceChildren(window.Chart.candles(cs, fmt, "Candles, " + tf, tf === "1D" ? md : hhmm));
+    // TradingView style chart when the library loaded; the built in SVG chart is the fallback.
+    if (window.DA.lwChart) window.DA.lwChart(box, cs, fmt, tf);
+    else box.replaceChildren(window.Chart.candles(cs, fmt, "Candles, " + tf, tf === "1D" ? md : hhmm));
+    // Honest state: a coin nobody has traded yet has one flat price; say so instead of letting it look broken.
+    const flat = cs.every((c) => c.h === cs[0].h && c.l === cs[0].l);
     $("market-note").textContent =
       src === "demo"
         ? "Demo data: shapes are generated so the page can be judged."
-        : "Read from the pump.fun bonding curve on " + (agent && agent.cluster ? agent.cluster : "chain") + ". USD uses a fixed SOL price.";
+        : flat
+          ? "No trades yet, so the price has not moved. The chart starts moving with the first buy."
+          : "Read from the pump.fun bonding curve on " + (agent && agent.cluster ? agent.cluster : "chain") + ". USD uses a fixed SOL price.";
   }
   async function loadMarket() {
     try {
@@ -192,6 +203,11 @@
     renderMarketStats();
     drawMarket();
   }
+  // A trade on this page moves the price right away: reload the chart and holders.
+  window.addEventListener("trade-done", () => {
+    loadMarket();
+    loadHolders();
+  });
   async function loadHolders() {
     try {
       const r = await fetch("/api/agents/" + encodeURIComponent(id) + "/holders");
@@ -360,13 +376,24 @@
               h(
                 "div",
                 { class: "votes" },
+                // Progress toward the quorum: enough holders AND enough of the supply, or the agent will not build it.
                 h(
                   "span",
-                  {},
-                  Math.round(q.score) +
-                    " weight, " +
-                    q.voters +
-                    (q.voters === 1 ? " voter" : " voters"),
+                  { class: q.ready ? "ok-msg" : "" },
+                  q.ready
+                    ? "Approved by holders · next to build"
+                    : // Each half says whether it is met, so voters see exactly what is still missing.
+                      (q.voters >= a.quorum.minVoters ? "✓ " : "") +
+                        q.voters +
+                        " of " +
+                        a.quorum.minVoters +
+                        " voters · " +
+                        (q.score >= a.quorum.minWeight ? "✓ " : "") +
+                        "voters hold " +
+                        share(q.score / a.quorum.supply) +
+                        " of supply (needs " +
+                        share(a.quorum.minWeight / a.quorum.supply) +
+                        ")",
                 ),
                 h("button", { class: "btn small", type: "button", "data-s": q.id }, "Vote"),
               ),
@@ -422,26 +449,7 @@
         ["Created", new Date(a.createdAt).toLocaleDateString()],
       ]),
     );
-    const t = $("trade-btn");
-    const main = a.cluster === "mainnet" || a.cluster === "mainnet-beta";
-    t.replaceChildren(
-      a.mint && main
-        ? h(
-            "a",
-            {
-              class: "btn primary wide",
-              href: "https://pump.fun/coin/" + encodeURIComponent(a.mint),
-              rel: "noopener noreferrer",
-              target: "_blank",
-            },
-            "Open on pump.fun",
-          )
-        : h(
-            "button",
-            { class: "btn wide", type: "button", disabled: true },
-            a.mint ? "Test network token, no market" : "Opens after the launch",
-          ),
-    );
+    // The Buy and Sell panel lives in agent-trade.js.
     $("brief").textContent = a.lockedPrompt || "No brief was set.";
     $("hash").textContent = a.promptHash ? "sha256 " + a.promptHash : "";
   }
@@ -551,5 +559,6 @@
     loadHolders();
   });
   live(refresh);
-  setInterval(loadMarket, 15000);
+  // Follows the orchestrator's 10s price reads; a hidden tab stops asking.
+  setInterval(() => document.hidden || loadMarket(), 5000);
 })();

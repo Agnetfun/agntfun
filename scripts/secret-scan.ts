@@ -16,7 +16,8 @@ const ENV_FILE = /(^|\/)\.env(\..+)?$/;
 
 let bad = 0;
 for (const f of files) {
-  if (ENV_FILE.test(f) && !f.endsWith(".env.example")) {
+  // Templates (.env.example, .env.production.example) hold no values; they still go through the content scan below.
+  if (ENV_FILE.test(f) && !f.endsWith(".example")) {
     console.error(`${f}: env file must not be committed`);
     bad++;
     continue;

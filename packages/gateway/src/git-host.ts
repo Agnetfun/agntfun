@@ -37,6 +37,18 @@ export class GitCliHost implements VcsHost {
     return stdout.trim();
   }
 
+  private async apply(dir: string, env: Record<string, string>, patch: string) {
+    // Absolute: git runs inside the repo folder, so a path relative to the project would point nowhere.
+    const patchFile = resolve(this.workRoot, `${ulid()}.patch`);
+    // git apply rejects a patch whose last line has no newline ("corrupt patch"); captured diffs often lose it.
+    writeFileSync(patchFile, patch.endsWith("\n") ? patch : `${patch}\n`);
+    try {
+      await this.git(dir, env, "apply", "--index", "--whitespace=nowarn", patchFile);
+    } finally {
+      rmSync(patchFile, { force: true });
+    }
+  }
+
   async push(i: GitPush): Promise<{ ref: string }> {
     await this.remote.ensure(i.repo, i.agentId);
     const env = await this.remote.env(i.repo, i.agentId);
@@ -56,6 +68,7 @@ export class GitCliHost implements VcsHost {
         await this.git(dir, env, "push", "--quiet", "origin", "refs/remotes/seed/main:refs/heads/main");
       } else {
         await this.git(dir, env, "checkout", "--quiet", "--orphan", "main");
+        if (i.base?.trim()) await this.apply(dir, env, i.base); // the agent's starter files
         await this.git(dir, env, "commit", "--quiet", "--allow-empty", "-m", "Initial commit");
         await this.git(dir, env, "push", "--quiet", "origin", "main");
       }
@@ -65,13 +78,7 @@ export class GitCliHost implements VcsHost {
     await this.git(dir, env, "checkout", "--quiet", "-B", target, "origin/main");
     await this.git(dir, env, "reset", "--quiet", "--hard", "origin/main");
     await this.git(dir, env, "clean", "-fdq");
-    const patchFile = join(this.workRoot, `${ulid()}.patch`);
-    writeFileSync(patchFile, i.patch);
-    try {
-      await this.git(dir, env, "apply", "--index", "--whitespace=nowarn", patchFile);
-    } finally {
-      rmSync(patchFile, { force: true });
-    }
+    await this.apply(dir, env, i.patch);
     const msg = i.commitMessage || (i.merge ? `Merge session ${i.sessionId}` : `Session ${i.sessionId}`);
     await this.git(dir, env, "commit", "--quiet", "--allow-empty", "-m", msg);
     const sha = await this.git(dir, env, "rev-parse", "HEAD");

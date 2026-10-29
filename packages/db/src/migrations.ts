@@ -358,6 +358,11 @@ ALTER TABLE agent_credentials ADD COLUMN error_at INTEGER;
 ALTER TABLE agent_credentials ADD COLUMN last_error TEXT;
 `;
 
+// Triage retries: a failed or garbled model answer is tried again (a few times) instead of rejecting the idea.
+const v16 = `
+ALTER TABLE suggestions ADD COLUMN triage_attempts INTEGER NOT NULL DEFAULT 0;
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: "schema_v0", sql: v1 },
   { version: 2, name: "phase1_llm_tasks", sql: v2 },
@@ -374,4 +379,5 @@ export const MIGRATIONS: Migration[] = [
   { version: 13, name: "connect_accounts", sql: v13 },
   { version: 14, name: "platform_wallets", sql: v14 },
   { version: 15, name: "connection_health", sql: v15 },
+  { version: 16, name: "triage_retries", sql: v16 },
 ];

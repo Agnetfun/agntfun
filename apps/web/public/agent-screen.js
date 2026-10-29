@@ -75,6 +75,9 @@
 
   async function play(f) {
     switch (f.kind) {
+      case "recall":
+        term(p("› "), "recall " + f.sessions + " past session" + (f.sessions === 1 ? "" : "s") + " from memory");
+        break;
       case "start":
         $("scr-task").textContent = "Task: " + f.task;
         term(p("$ "), "wake");

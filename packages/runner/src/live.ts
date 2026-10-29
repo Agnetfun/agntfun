@@ -6,7 +6,7 @@ import type { Db } from "@devagent/db";
  * commits), never its raw model text, because model text can carry injected community content.
  * Everything is clipped and secret scanned before it is stored; a file that looks like it holds a secret is hidden.
  */
-export type FrameKind = "start" | "read" | "write" | "list" | "tests" | "commit" | "end";
+export type FrameKind = "start" | "recall" | "read" | "write" | "list" | "tests" | "commit" | "end";
 
 const LIMITS = { file: 12_000, output: 3_000, small: 300 };
 const KEEP_SESSIONS = 5;
@@ -43,6 +43,10 @@ export class LiveScreen {
     }
   }
 
+  /** The agent recalled this many past sessions from its memory. */
+  recall(sessions: number) {
+    this.frame("recall", { sessions });
+  }
   start(task: string) {
     this.frame("start", { task: clean(task, LIMITS.small) });
   }

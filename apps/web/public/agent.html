@@ -135,10 +135,32 @@
             <p class="note muted mt-3" id="launch-msg" role="status" aria-live="polite"></p>
           </section>
 
-          <section class="card trade" aria-labelledby="tr-h">
-            <h2 id="tr-h">Trade</h2>
-            <p class="muted note" id="trade-text">Trading happens on pump.fun. This site never holds funds or places orders.</p>
-            <div id="trade-btn"></div>
+          <section class="card tradep" aria-labelledby="tr-h">
+            <h2 id="tr-h">Trade <span id="tp-sym" class="ticker"></span></h2>
+            <div class="tp-side" role="tablist" aria-label="Buy or sell">
+              <button type="button" role="tab" data-side="buy" aria-selected="true">Buy</button>
+              <button type="button" role="tab" data-side="sell" aria-selected="false">Sell</button>
+            </div>
+            <label class="tp-amt">
+              <span class="sr-only" id="tp-amt-l">Amount</span>
+              <input id="tp-amount" inputmode="decimal" autocomplete="off" placeholder="0.0" aria-labelledby="tp-amt-l" />
+              <b id="tp-unit">SOL</b>
+            </label>
+            <div class="tp-quick" id="tp-quick"></div>
+            <p class="tp-out" id="tp-out" aria-live="polite"></p>
+            <div class="tp-slip">
+              <span>Slippage</span>
+              <div class="tp-slip-opts" role="group" aria-label="Slippage">
+                <button type="button" data-slip="1" aria-pressed="false">1%</button>
+                <button type="button" data-slip="3" aria-pressed="false">3%</button>
+                <button type="button" data-slip="5" aria-pressed="true">5%</button>
+                <button type="button" data-slip="10" aria-pressed="false">10%</button>
+              </div>
+            </div>
+            <button class="btn primary wide" type="button" id="tp-go">Connect wallet</button>
+            <p class="note" id="tp-msg" role="status" aria-live="polite"></p>
+            <p class="note muted" id="tp-bal"></p>
+            <p class="note muted">Your wallet signs every trade. This site never holds funds.</p>
           </section>
 
           <section class="card" aria-labelledby="q-h">
@@ -162,6 +184,7 @@
             <h2 id="ac2-h">Agent accounts</h2>
             <p class="note muted mt-3">It ships from its own GitHub and posts from its own X.</p>
             <ul class="accts mt-3" id="accts"></ul>
+            <div id="acct-setup"></div>
             <p class="note muted mt-3" id="acct-msg" role="status" aria-live="polite"></p>
           </section>
 
@@ -226,11 +249,14 @@
     >
     {{partial:footer}} {{partial:scripts}}
     <script src="/chart.js" defer></script>
+    <script src="/vendor/charts.js" defer></script>
+    <script src="/agent-chart.js" defer></script>
     <script src="/agent.js" defer></script>
     <script src="/vendor/web3.js" defer></script>
     <script src="/agent-dapp.js" defer></script>
     <script src="/agent-screen.js" defer></script>
     <script src="/agent-connect.js" defer></script>
     <script src="/agent-setup.js" defer></script>
+    <script src="/agent-trade.js" defer></script>
   </body>
 </html>

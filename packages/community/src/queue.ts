@@ -29,11 +29,36 @@ export function rankQueue(db: Db, agentId: string): Ranked[] {
   ).map((r) => ({ ...r }));
 }
 
-/** Turns the top voted suggestions into agent tasks. Unvoted suggestions are never promoted. */
-export function promoteTop(db: Db, clock: Clock, agentId: string, n: number): number {
+/**
+ * How much support an idea needs before the agent builds it: enough distinct holders AND enough of the coin's supply.
+ * Both together, so neither one whale nor a crowd of dust wallets can push an idea through alone.
+ */
+export interface Quorum {
+  minVoters: number;
+  /** Total vote weight (tokens held by the voters, in whole tokens). */
+  minWeight: number;
+}
+/** pump.fun coins always have a supply of one billion tokens. */
+export const COIN_SUPPLY = 1_000_000_000;
+export const NO_QUORUM: Quorum = { minVoters: 1, minWeight: 0 };
+
+export function quorumFromEnv(env: Record<string, string | undefined> = process.env): Quorum {
+  const voters = Number(env.VOTE_MIN_VOTERS);
+  const pct = Number(env.VOTE_MIN_SUPPLY_PCT);
+  return {
+    minVoters: Number.isFinite(voters) && voters >= 1 ? Math.floor(voters) : 3,
+    minWeight: ((Number.isFinite(pct) && pct >= 0 ? pct : 1) / 100) * COIN_SUPPLY,
+  };
+}
+
+export const meetsQuorum = (r: Pick<Ranked, "score" | "voters">, q: Quorum) =>
+  r.score > 0 && r.voters >= q.minVoters && r.score >= q.minWeight;
+
+/** Turns the top voted suggestions that reached the quorum into agent tasks. Unvoted suggestions are never promoted. */
+export function promoteTop(db: Db, clock: Clock, agentId: string, n: number, quorum: Quorum = NO_QUORUM): number {
   let promoted = 0;
   for (const r of rankQueue(db, agentId)
-    .filter((x) => x.score > 0)
+    .filter((x) => meetsQuorum(x, quorum))
     .slice(0, n)) {
     const inserted = upsertTask(db, clock, {
       agentId,

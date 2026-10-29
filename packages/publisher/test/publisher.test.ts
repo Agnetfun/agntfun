@@ -107,7 +107,12 @@ describe("publishSession", () => {
     migrate(db, clock);
     ks = new KillSwitch(db, clock);
     vcs = new MockVcsHost();
-    soc = new MockSocial();
+    // Refs shaped like real X posts ("x:..."), so the cost is charged as it would be on X.
+    soc = new (class extends MockSocial {
+      async post(agentId: string, text: string) {
+        return { ref: "x:" + (await super.post(agentId, text)).ref };
+      }
+    })();
     gw = new ActionGateway(db, clock, ks, vcs, soc);
     agent = createAgent(db, clock, { name: "a", model: "opus", lockedPrompt: "", repo: "o/r" }).id;
     merged = 0;
@@ -125,7 +130,7 @@ describe("publishSession", () => {
 
   it("drops the link when the budget is small", async () => {
     const r = await publishSession(deps(5), session());
-    expect(r).toMatchObject({ posted: true, costCents: 1 });
+    expect(r).toMatchObject({ posted: true, costCents: 2 });
     expect(soc.posts[0]!.text).not.toContain("http");
   });
 
@@ -158,5 +163,16 @@ describe("publishSession", () => {
     expect(r.pushed).toBe(false);
     expect(r.posted).toBe(false);
     expect(vcs.pushes).toHaveLength(0);
+  });
+});
+
+describe("X costs", () => {
+  it("uses X pay per use prices, rounded up, and keeps links off by default", async () => {
+    const { postCostCents, mentionReadCents, maxPostCentsFromEnv } = await import("../src/costs");
+    expect(postCostCents(false)).toBe(2);
+    expect(postCostCents(true)).toBe(20);
+    expect(mentionReadCents(3)).toBe(2);
+    expect(maxPostCentsFromEnv({})).toBe(2);
+    expect(maxPostCentsFromEnv({ X_POST_LINKS: "1" })).toBe(20);
   });
 });

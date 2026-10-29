@@ -34,6 +34,7 @@ export async function publishSession(d: PublishDeps, r: SessionResult): Promise<
   if (!agent?.repo) return { ...out, skipped: "agent has no repo" };
 
   const patch = await d.workspace.patchSinceMain();
+  const starter = (await d.workspace.patchOfMain?.()) ?? "";
   const stats = patchStats(patch);
   const base = {
     kind: "git_push" as const,
@@ -41,6 +42,7 @@ export async function publishSession(d: PublishDeps, r: SessionResult): Promise<
     sessionId: r.sessionId,
     repo: agent.repo,
     headSha: r.headSha,
+    base: starter.length <= 200_000 ? starter : "",
     testReport: { passed: r.testsPassed === true, summary: `endReason=${r.endReason}` },
   };
   if (patch.trim()) {
@@ -124,6 +126,8 @@ export async function publishSession(d: PublishDeps, r: SessionResult): Promise<
   });
   if (!decision.allowed)
     return { ...out, skipped: `gateway: ${decision.stage} ${decision.reason}` };
+  // Only a real X post costs money; the local outbox (no X account connected) is free.
+  const charged = decision.ref.startsWith("x:") ? cost : 0;
   d.db
     .prepare(
       "INSERT INTO posts (id, agent_id, session_id, ts, text, ref, linked, cost_cents) VALUES (?,?,?,?,?,?,?,?)",
@@ -136,7 +140,7 @@ export async function publishSession(d: PublishDeps, r: SessionResult): Promise<
       text,
       decision.ref,
       withLink ? 1 : 0,
-      cost,
+      charged,
     );
-  return { ...out, posted: true, postText: text, costCents: cost };
+  return { ...out, posted: true, postText: text, costCents: charged };
 }

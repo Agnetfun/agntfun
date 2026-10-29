@@ -20,11 +20,13 @@ export function createProvider(
   }
   if (choice === "opus") {
     if (!cfg.anthropic.apiKey)
-      throw new Error("ANTHROPIC_API_KEY is not set (needed for the opus model)");
+      throw new Error("ANTHROPIC_API_KEY or OPENROUTER_API_KEY is not set (needed for the opus model)");
     return new AnthropicProvider({
       apiKey: cfg.anthropic.apiKey,
       modelId: cfg.anthropic.modelId,
       effort: cfg.anthropic.effort,
+      baseUrl: cfg.anthropic.baseUrl,
+      bearer: cfg.anthropic.via === "openrouter",
       fetch: o.fetch,
     });
   }

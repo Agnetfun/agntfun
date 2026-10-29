@@ -16,6 +16,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "secret-scan": "tsx scripts/secret-scan.ts",
+    "preflight": "node scripts/preflight-mainnet.mjs",
     "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm secret-scan",
     "prepare": "git config core.hooksPath .githooks || true",
     "redteam": "vitest run packages/gateway/test/redteam.test.ts",

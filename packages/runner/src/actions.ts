@@ -33,17 +33,33 @@ export function extractJson(text: string): string | null {
   return null;
 }
 
+/**
+ * Some open models answer in their native tool call markup instead of JSON:
+ * <tool_call>read_file<arg_key>path</arg_key><arg_value>a.js</arg_value></tool_call>
+ * The first such call becomes the same plain object a JSON answer would give; the schema below still decides.
+ */
+export function extractToolCallMarkup(text: string): Record<string, string> | null {
+  const m = /<tool_call>\s*([a-z_]+)([\s\S]*?)<\/tool_call>/.exec(text);
+  if (!m) return null;
+  const out: Record<string, string> = { action: m[1]! };
+  for (const a of m[2]!.matchAll(/<arg_key>\s*([a-z_]+)\s*<\/arg_key>\s*<arg_value>([\s\S]*?)<\/arg_value>/g))
+    if (a[1] !== "action") out[a[1]!] = a[2]!;
+  return out;
+}
+
 export function parseAction(
   text: string,
 ): { ok: true; action: Action } | { ok: false; error: string } {
-  const json = extractJson(text);
-  if (!json) return { ok: false, error: "no JSON object found" };
-  let raw: unknown;
-  try {
-    raw = JSON.parse(json);
-  } catch {
-    return { ok: false, error: "invalid JSON" };
-  }
+  // Markup first: a write_file call's code holds braces that would fool the JSON finder.
+  let raw: unknown = extractToolCallMarkup(text);
+  const json = raw ? null : extractJson(text);
+  if (!json && !raw) return { ok: false, error: "no JSON object found" };
+  if (json)
+    try {
+      raw = JSON.parse(json);
+    } catch {
+      return { ok: false, error: "invalid JSON" };
+    }
   const r = ActionSchema.safeParse(raw);
   if (!r.success)
     return {
