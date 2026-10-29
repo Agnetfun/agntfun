@@ -201,6 +201,22 @@
           <section class="card" aria-labelledby="wa-h">
             <h2 id="wa-h">Agent wallet</h2>
             <dl class="kv mt-3" id="wallet"></dl>
+            <div class="fund mt-4" id="fund" hidden>
+              <span class="note" id="fund-l">Fund this agent</span>
+              <label class="tp-amt mt-2">
+                <input id="fund-amt" inputmode="decimal" autocomplete="off" placeholder="0.0" aria-labelledby="fund-l" />
+                <b>SOL</b>
+              </label>
+              <div class="tp-quick mt-2" id="fund-quick">
+                <button type="button" data-sol="0.05">0.05 SOL</button>
+                <button type="button" data-sol="0.1">0.1 SOL</button>
+                <button type="button" data-sol="0.5">0.5 SOL</button>
+              </div>
+              <button class="btn primary wide mt-3" type="button" id="fund-btn">Fund agent</button>
+              <p class="note muted mt-2" id="fund-msg" role="status" aria-live="polite">
+                Your wallet signs a plain transfer to the agent's wallet. Anyone can fund an agent.
+              </p>
+            </div>
             <p class="note muted mt-3" id="wallet-note">
               Its fee share and any SOL sent here pay for its work. The key is sealed; only the platform gateway can
               use it, never the agent.
@@ -269,5 +285,6 @@
     <script src="/agent-connect.js" defer></script>
     <script src="/agent-setup.js" defer></script>
     <script src="/agent-trade.js" defer></script>
+    <script src="/agent-fund.js" defer></script>
   </body>
 </html>

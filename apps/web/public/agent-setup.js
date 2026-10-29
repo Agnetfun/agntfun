@@ -90,8 +90,11 @@
         done: funded,
         title: funded ? "Wallet funded" : "Fund its wallet",
         text: "Any SOL in its wallet pays for its AI. Fees take over once the coin trades.",
-        act: () => goTo($("wallet")),
-        label: "Show wallet",
+        act: () => {
+          goTo($("fund"));
+          setTimeout(() => $("fund-amt").focus(), 400);
+        },
+        label: "Fund now",
         available: true,
       },
     ];

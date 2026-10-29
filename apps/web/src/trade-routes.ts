@@ -3,6 +3,7 @@ import { appendEvent, type Db } from "@devagent/db";
 import {
   PriceSampler,
   TradeError,
+  agentWalletAddress,
   buildTrade,
   confirmSignature,
   getLaunch,
@@ -10,7 +11,11 @@ import {
   tokenBalanceRaw,
   type Side,
 } from "@devagent/launch";
-import { PublicKey, Transaction, type Connection } from "@solana/web3.js";
+import { PublicKey, SystemProgram, Transaction, type Connection } from "@solana/web3.js";
+
+/** Funding: anyone can send SOL to an agent's wallet in one click, between these bounds (typo guard on the top). */
+export const FUND_MIN_SOL = 0.001;
+export const FUND_MAX_SOL = 100;
 
 /**
  * Buy and sell from the agent page. The server builds the unsigned pump.fun transaction, the user's wallet signs,
@@ -34,15 +39,61 @@ export function createTradeRoutes(d: TradeDeps) {
     return l && l.cluster !== "mock" ? l : undefined;
   };
 
+  /**
+   * Fund an agent like a buy: the server builds a plain SOL transfer from the user's wallet to the agent's wallet
+   * (System Program transfer, nothing else), the wallet signs, and the server sends it only if it is that transfer.
+   * The treasury books it when the wallet watcher sees it arrive (within a minute).
+   */
+  async function fund(path: string, agentId: string, wallet: string, b: Record<string, unknown>): Promise<Reply> {
+    const to = agentWalletAddress(d.db, agentId);
+    if (!to) return { status: 400, body: { error: "This agent has no wallet yet. Try again in a minute." } };
+    const key = `fund:${wallet}:${agentId}`;
+    try {
+      if (path === "/api/fund/prepare") {
+        const sol = Number(b.sol);
+        if (!(sol >= FUND_MIN_SOL && sol <= FUND_MAX_SOL))
+          return { status: 400, body: { error: `Send between ${FUND_MIN_SOL} and ${FUND_MAX_SOL} SOL.` } };
+        const from = new PublicKey(wallet);
+        const lamports = Math.round(sol * 1e9);
+        const { blockhash } = await d.rpc.getLatestBlockhash("confirmed");
+        const tx = new Transaction({ feePayer: from, recentBlockhash: blockhash }).add(
+          SystemProgram.transfer({ fromPubkey: from, toPubkey: new PublicKey(to), lamports }),
+        );
+        pending.set(key, { message: tx.serializeMessage().toString("base64"), side: "buy", at: Date.now() });
+        return { status: 200, body: { tx: tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64"), lamports, to } };
+      }
+      const p = pending.get(key);
+      if (!p || Date.now() - p.at > TTL) return { status: 400, body: { error: "This request expired. Try again." } };
+      const tx = Transaction.from(Buffer.from(str(b.tx, 4000), "base64"));
+      if (!matchesPrepared(p.message, tx)) return { status: 400, body: { error: "The signed transfer is not the one this site prepared." } };
+      if (!tx.verifySignatures()) return { status: 400, body: { error: "The transfer is missing your signature." } };
+      pending.delete(key);
+      const signature = await d.rpc.sendRawTransaction(tx.serialize());
+      await confirmSignature(d.rpc, signature);
+      appendEvent(d.db, d.clock, { type: "agent.funded", agentId, payload: { from: wallet, signature } });
+      return { status: 200, body: { signature } };
+    } catch (e) {
+      const m = e instanceof Error ? e.message : "";
+      if (/insufficient|0x1\b|lamports/i.test(m)) return { status: 400, body: { error: "Not enough SOL in your wallet for this amount and the fee." } };
+      if (/Invalid public key|Non-base58/i.test(m)) return { status: 400, body: { error: "Connect your wallet first." } };
+      if (/blockhash|expired/i.test(m)) return { status: 400, body: { error: "The transfer expired before it was sent. Try again." } };
+      if (e instanceof Error && /not valid|Transaction/.test(m)) return { status: 400, body: { error: "That is not a valid signed transfer." } };
+      return { status: 502, body: { error: "The network call failed. Try again in a moment." } };
+    }
+  }
+
   return {
     postPaths: {
       "/api/trade/prepare": [60, 600_000],
       "/api/trade/submit": [30, 600_000],
+      "/api/fund/prepare": [30, 600_000],
+      "/api/fund/submit": [30, 600_000],
     } as Record<string, [number, number]>,
 
     async post(path: string, b: Record<string, unknown>): Promise<Reply> {
       const agentId = str(b.agentId, 40);
       const wallet = str(b.wallet, 64);
+      if (path.startsWith("/api/fund/")) return fund(path, agentId, wallet, b);
       const l = coin(agentId);
       if (!l) return { status: 400, body: { error: "This agent has no coin yet." } };
       const key = `${wallet}:${agentId}`;

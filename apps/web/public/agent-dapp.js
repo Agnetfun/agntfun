@@ -24,7 +24,7 @@
       const faucet =
         w.cluster === "devnet"
           ? h("a", { href: "https://faucet.solana.com", rel: "noopener noreferrer", target: "_blank" }, "Devnet faucet")
-          : "Send SOL to the address above";
+          : "Use Fund agent below, or send SOL to the address";
       const f = w.fees || {};
       $("wallet").replaceChildren(
         ...kv([
@@ -121,6 +121,7 @@
     renderLaunch();
   });
   window.Wallet.onChange(renderLaunch);
+  window.addEventListener("agent-funded", () => setTimeout(loadWallet, 1500)); // the new balance shows at once
   loadWallet();
   setInterval(loadWallet, 20_000);
 })();

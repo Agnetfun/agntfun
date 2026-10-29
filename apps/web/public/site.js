@@ -50,16 +50,74 @@
     h("span", { class: "badge" }, h("span", { class: "dot " + s }), STATES[s] || s);
   const MODELS = { opus: "Claude Opus 5.5", astra: "GPT 6 Astra" };
 
+  /** A short message at the bottom of the screen, read out to screen readers too. */
+  let toastTimer = null;
+  function toast(text, kind) {
+    let el = document.getElementById("toast");
+    if (!el) {
+      el = h("div", { id: "toast", class: "toast", role: "status", "aria-live": "polite" });
+      document.body.append(el);
+    }
+    el.textContent = text;
+    el.className = "toast show" + (kind === "err" ? " bad" : "");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (el.className = "toast"), 2200);
+  }
+
+  /** The satisfying moment after money moves: a confetti burst and a soft two note chime (after a user action only). */
+  function celebrate() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      const ac = new Ctx();
+      [659.25, 987.77].forEach((f, i) => {
+        const o = ac.createOscillator();
+        const g = ac.createGain();
+        o.type = "sine";
+        o.frequency.value = f;
+        const t = ac.currentTime + i * 0.12;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.08, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+        o.connect(g).connect(ac.destination);
+        o.start(t);
+        o.stop(t + 0.5);
+      });
+      setTimeout(() => ac.close(), 1200);
+    } catch {
+      /* no audio: the confetti still says it */
+    }
+    if (reduce) return;
+    const layer = h("div", { class: "confetti", "aria-hidden": "true" });
+    const colors = ["#22c55e", "#4ade80", "#ffffff", "#9b9b9b"];
+    for (let i = 0; i < 48; i++) {
+      const p = h("i", {});
+      p.style.left = 50 + (Math.random() - 0.5) * 30 + "%";
+      p.style.background = colors[i % colors.length];
+      p.style.setProperty("--dx", (Math.random() - 0.5) * 520 + "px");
+      p.style.setProperty("--dy", -(180 + Math.random() * 260) + "px");
+      p.style.setProperty("--r", Math.random() * 720 - 360 + "deg");
+      p.style.animationDelay = Math.random() * 80 + "ms";
+      layer.append(p);
+    }
+    document.body.append(layer);
+    setTimeout(() => layer.remove(), 1600);
+  }
+
   async function copy(text, btn) {
     try {
       await navigator.clipboard.writeText(text);
+      toast("Address copied");
       if (btn) {
         const old = btn.getAttribute("aria-label");
+        btn.classList.add("copied");
         btn.setAttribute("aria-label", "Copied");
-        setTimeout(() => btn.setAttribute("aria-label", old || "Copy"), 1500);
+        setTimeout(() => {
+          btn.classList.remove("copied");
+          btn.setAttribute("aria-label", old || "Copy");
+        }, 1500);
       }
     } catch {
-      /* clipboard blocked: nothing to do */
+      toast("Copy was blocked by the browser. Select the address and copy it by hand.", "err");
     }
   }
 
@@ -230,5 +288,5 @@
     return h("div", { class: "avatar a" + n + " " + (cls || ""), "aria-hidden": "true" }, a.name.slice(0, 1).toUpperCase());
   }
 
-  window.DA = { h, ago, money, usd, price, pct, short, copy, stateBadge, MODELS, live, $, avatar };
+  window.DA = { h, ago, money, usd, price, pct, short, copy, toast, celebrate, stateBadge, MODELS, live, $, avatar };
 })();

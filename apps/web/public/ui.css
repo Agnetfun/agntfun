@@ -2201,3 +2201,61 @@ table,
 .files .st.err {
   color: var(--red);
 }
+
+/* Toast (copy, fund) and the funding celebration */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 80;
+  max-width: calc(100vw - 32px);
+  padding: 12px 16px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 20px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 8px);
+  transition: opacity 300ms var(--ease), transform 300ms var(--ease);
+}
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.toast.show::before {
+  content: "\2713  ";
+  color: var(--green-hi);
+}
+.toast.bad::before {
+  content: "";
+}
+.toast.bad {
+  border-color: var(--red);
+}
+.copy.copied {
+  color: var(--green-hi);
+}
+.confetti {
+  position: fixed;
+  inset: 0;
+  z-index: 79;
+  overflow: hidden;
+  pointer-events: none;
+}
+.confetti i {
+  position: absolute;
+  top: 55%;
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+  animation: confetti 1300ms var(--ease) forwards;
+}
+@keyframes confetti {
+  to {
+    transform: translate(var(--dx), var(--dy)) rotate(var(--r));
+    opacity: 0;
+  }
+}
