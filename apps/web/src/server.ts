@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -77,7 +77,7 @@ const PRIVY_CSP = [
   "script-src 'self' https://challenges.cloudflare.com",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
-  "img-src 'self' data: blob:",
+  "img-src 'self' data: blob: https://explorer-api.walletconnect.com",
   "connect-src 'self' https://auth.privy.io wss://relay.walletconnect.com wss://relay.walletconnect.org wss://www.walletlink.org https://*.rpc.privy.systems https://explorer-api.walletconnect.com https://api.mainnet-beta.solana.com https://api.devnet.solana.com wss://api.mainnet-beta.solana.com wss://api.devnet.solana.com",
   "child-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org",
   "frame-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org https://challenges.cloudflare.com",
@@ -85,6 +85,8 @@ const PRIVY_CSP = [
   "base-uri 'none'",
   "form-action 'self'",
   "frame-ancestors 'none'",
+  // Blocked requests are reported back (saved to data/csp-reports.jsonl) so a missing Privy domain shows up at once.
+  "report-uri /api/csp-report",
 ].join("; ");
 export const CSP = process.env.PRIVY_APP_ID ? PRIVY_CSP : STRICT_CSP;
 const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
@@ -239,6 +241,41 @@ export function createWebServer(d: WebDeps): { server: Server; close(): void; st
   /** Raw image body. Size capped while reading; the type is decided from the bytes, not the header. */
   const files = createAttachmentRoutes({ db: d.db, clock });
 
+  /**
+   * Browser diagnostics, small JSON appended to data/ for the owner to read: CSP violation reports
+   * (csp-reports.jsonl) and, on test networks only, console errors forwarded by the Privy bundle (client-log.jsonl).
+   */
+  async function cspReport(req: IncomingMessage, res: ServerResponse, path: string) {
+    let body = "";
+    for await (const c of req) {
+      body += (c as Buffer).toString("utf8");
+      if (body.length > 8192) break;
+    }
+    try {
+      const j = JSON.parse(body) as Record<string, unknown>;
+      let file = "data/csp-reports.jsonl";
+      let entry: Record<string, string>;
+      if (path === "/api/client-log") {
+        if (process.env.SOLANA_CLUSTER === "mainnet-beta") throw new Error("off on mainnet");
+        file = "data/client-log.jsonl";
+        entry = { level: String(j.level ?? "").slice(0, 10), msg: String(j.msg ?? "").slice(0, 1500) };
+      } else {
+        const r = (j["csp-report"] ?? {}) as Record<string, unknown>;
+        entry = {
+          directive: String(r["violated-directive"] ?? r["effective-directive"] ?? "").slice(0, 100),
+          blocked: String(r["blocked-uri"] ?? "").slice(0, 300),
+          source: String(r["source-file"] ?? "").slice(0, 200),
+        };
+      }
+      mkdirSync("data", { recursive: true });
+      appendFileSync(file, `${JSON.stringify({ ts: new Date().toISOString(), ...entry })}\n`);
+    } catch {
+      /* not a report, or logging is off */
+    }
+    res.writeHead(204, { "content-security-policy": CSP });
+    res.end();
+  }
+
   async function uploadLogo(req: IncomingMessage, res: ServerResponse) {
     const origin = req.headers.origin;
     if (origin && new URL(origin).host !== req.headers.host)
@@ -262,6 +299,8 @@ export function createWebServer(d: WebDeps): { server: Server; close(): void; st
       "/api/vote": [60, 600_000],
       "/api/report": [5, 3_600_000],
       "/api/logo": [10, 3_600_000],
+      "/api/csp-report": [60, 3_600_000],
+      "/api/client-log": [60, 3_600_000],
       [files.path]: files.rule,
       ...d.dapp?.postPaths,
     };
@@ -274,6 +313,7 @@ export function createWebServer(d: WebDeps): { server: Server; close(): void; st
       return json(req, res, 429, { error: "Too many attempts. Try again later." });
     if (path === "/api/logo") return uploadLogo(req, res);
     if (path === files.path) return files.upload(req, res, json);
+    if (path === "/api/csp-report" || path === "/api/client-log") return cspReport(req, res, path);
     const b = await readJson(req, path === "/api/deploy" ? MAX_DEPLOY_BODY : MAX_BODY);
     if (!b.ok) return json(req, res, b.status, { error: b.error });
     const body = b.body;

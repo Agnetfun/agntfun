@@ -62,6 +62,7 @@
   const keyOf = (p, r) => (r && r.publicKey ? r.publicKey : p.publicKey).toString();
 
   async function connect(which) {
+    if (which !== "privy" && (await config()).privyAppId) which = "privy"; // one door to the extensions
     if (which === "privy") await loadPrivy();
     const p = PROVIDERS[which] && PROVIDERS[which]();
     if (!p) throw new Error("That wallet is not installed in this browser. Install it and reload.");
@@ -82,7 +83,13 @@
     return address;
   }
   async function restore() {
+    // With Privy on, Privy alone talks to wallet extensions: two connectors on one Phantom fight over it.
+    const privyOn = !!(await config()).privyAppId;
     const w = saved();
+    if (privyOn && w !== "privy") {
+      keep(null);
+      return;
+    }
     if (w === "privy") {
       // A Privy session survives reloads; reconnect quietly only if it is still logged in.
       try {
@@ -199,6 +206,8 @@
     if (!c.privyAppId) return;
     const b = document.getElementById("wm-privy");
     if (b) b.hidden = false;
+    // Phantom and Solflare are inside Privy's window; the direct buttons would open a second connector.
+    for (const d of document.querySelectorAll('[data-w="phantom"], [data-w="solflare"]')) d.hidden = true;
     const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1500));
     idle(() => loadPrivy().catch(() => {}));
   });

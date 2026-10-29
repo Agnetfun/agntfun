@@ -25,6 +25,37 @@ const chain = mainnet ? "solana:mainnet" : "solana:devnet";
 // Public endpoints only for Privy's own wallet screens; the site's keyed RPC never reaches the browser.
 const host = mainnet ? "api.mainnet-beta.solana.com" : "api.devnet.solana.com";
 
+// Test networks only: forward console errors to the server (data/client-log.jsonl), so a failed wallet login shows
+// its real reason without opening the browser console. Capped per page; never on mainnet.
+if (!mainnet) {
+  let sent = 0;
+  const text = (a: unknown) => {
+    if (a instanceof Error) return `${a.name}: ${a.message} ${a.stack ?? ""}`;
+    if (typeof a === "string") return a;
+    try {
+      return JSON.stringify(a);
+    } catch {
+      return String(a);
+    }
+  };
+  const send = (level: string, args: unknown[]) => {
+    if (sent++ >= 40) return;
+    void fetch("/api/client-log", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ level, msg: args.map(text).join(" ") }),
+    }).catch(() => {});
+  };
+  for (const level of ["error", "warn"] as const) {
+    const original = console[level].bind(console);
+    console[level] = (...args: unknown[]) => {
+      send(level, args);
+      original(...args);
+    };
+  }
+  window.addEventListener("unhandledrejection", (e) => send("reject", [e.reason]));
+}
+
 const listeners: Listener[] = [];
 let pending: { resolve: (a: string) => void; reject: (e: Error) => void } | null = null;
 const bridge: Bridge = {
