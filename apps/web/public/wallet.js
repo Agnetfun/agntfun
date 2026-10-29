@@ -187,13 +187,19 @@
     sha256Hex,
     postJson,
     address: () => address,
+    /** True when the site uses Privy's window as its wallet picker. */
+    usesPrivy: () => config().then((c) => !!c.privyAppId),
     available: (w) => !!(PROVIDERS[w] && PROVIDERS[w]()),
     onChange: (f) => listeners.push(f),
   };
   window.addEventListener("load", restore);
-  // The Privy choice appears in the wallet dialog only when the site has a Privy app.
+  // With a Privy app, Privy's own window is the wallet picker (email, Google, Phantom, Solflare and more). Its bundle
+  // preloads once the page is idle, so the window opens at once on click. The fallback choice stays for load errors.
   config().then((c) => {
+    if (!c.privyAppId) return;
     const b = document.getElementById("wm-privy");
-    if (b && c.privyAppId) b.hidden = false;
+    if (b) b.hidden = false;
+    const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1500));
+    idle(() => loadPrivy().catch(() => {}));
   });
 })();

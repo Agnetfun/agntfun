@@ -127,7 +127,7 @@
         : "Connect a Solana wallet. Connecting never spends money. Signing a message proves it is you.";
       if (addr) close();
     };
-    const open = () => {
+    const show = () => {
       opener = document.activeElement;
       err("");
       modal.hidden = false;
@@ -139,6 +139,21 @@
       modal.hidden = true;
       if (!window.Wallet.address()) window.dispatchEvent(new Event("wallet-dismissed"));
       if (opener && opener.focus) opener.focus();
+    };
+    // Not connected and the site uses Privy: open Privy's window straight away. Connected (address and Disconnect)
+    // or Privy failed to load: our own dialog.
+    const open = async () => {
+      if (!window.Wallet.address() && (await window.Wallet.usesPrivy())) {
+        try {
+          await window.Wallet.connect("privy");
+          return;
+        } catch (e) {
+          if (/cancelled/.test(e.message)) return void window.dispatchEvent(new Event("wallet-dismissed"));
+          show();
+          return void err(e.message);
+        }
+      }
+      show();
     };
     $("wallet-btn").addEventListener("click", open);
     window.addEventListener("open-wallet", open);
