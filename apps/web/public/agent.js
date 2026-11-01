@@ -224,10 +224,13 @@
     renderMarketStats();
     drawMarket();
   }
-  // A trade on this page moves the price right away: reload the chart and holders.
+  // A trade on this page moves the price right away; volume and holders land a few seconds later.
   window.addEventListener("trade-done", () => {
     loadMarket();
-    loadHolders();
+    setTimeout(() => {
+      loadMarket();
+      loadHolders();
+    }, 4000);
   });
   async function loadHolders() {
     try {

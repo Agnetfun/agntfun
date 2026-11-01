@@ -78,7 +78,11 @@ export class PriceSampler {
     return n;
   }
 
-  async sample(mint: string): Promise<boolean> {
+  /**
+   * Reads the coin's price and stores a sample. `priceOnly` (used right after a trade on this site) skips the slow
+   * parts, volume and holders, so the chart moves at once; the regular round fills those in.
+   */
+  async sample(mint: string, opts: { priceOnly?: boolean } = {}): Promise<boolean> {
     const m = new PublicKey(mint);
     const info = await this.rpc.getAccountInfo(sdk.bondingCurvePda(m), "confirmed");
     if (!info) return false;
@@ -90,6 +94,16 @@ export class PriceSampler {
     const pool = bc.complete ? await poolInfo(this.rpc, m) : null;
     const price = bc.complete ? (pool?.price ?? null) : vTok > 0 ? vSol / vTok : null;
     if (price === null || !(price > 0)) return false;
+    if (opts.priceOnly) {
+      // Keep the last known holder count instead of writing 0 for a sample that did not look.
+      const last = this.db.prepare("SELECT holders FROM price_samples WHERE mint=? ORDER BY ts DESC LIMIT 1").get(mint) as
+        | { holders: number }
+        | undefined;
+      this.db
+        .prepare("INSERT OR REPLACE INTO price_samples (mint, ts, price_sol, mcap_sol, holders, complete) VALUES (?,?,?,?,?,?)")
+        .run(mint, this.clock.now(), price, price * supply, last?.holders ?? 0, bc.complete ? 1 : 0);
+      return true;
+    }
     // Volume from the chain (every trade, wherever it was made); a failed read never blocks the price.
     await collectVolume(
       this.db,

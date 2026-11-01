@@ -142,7 +142,7 @@ export async function confirmSignature(rpc: Pick<LaunchRpc, "getSignatureStatuse
     const s = (await rpc.getSignatureStatuses([signature])).value[0];
     if (s?.err) fail("The network rejected the transaction.");
     if (s && (s.confirmationStatus === "confirmed" || s.confirmationStatus === "finalized")) return;
-    await new Promise((r) => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, 400)); // Solana confirms in about a second: check often
   }
   fail("The transaction was sent but not confirmed in time. Check the explorer, then refresh.");
 }

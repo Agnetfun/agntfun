@@ -120,7 +120,9 @@ export function createTradeRoutes(d: TradeDeps) {
         const signature = await d.rpc.sendRawTransaction(tx.serialize());
         await confirmSignature(d.rpc, signature);
         appendEvent(d.db, d.clock, { type: "trade", agentId, payload: { side: p.side, signature } });
-        await sampler.sample(l.mint).catch(() => false);
+        // The chart moves at once (price only); volume and holders follow in the background.
+        await sampler.sample(l.mint, { priceOnly: true }).catch(() => false);
+        void sampler.sample(l.mint).catch(() => false);
         return { status: 200, body: { signature } };
       } catch (e) {
         if (e instanceof TradeError) return { status: 400, body: { error: e.message } };
