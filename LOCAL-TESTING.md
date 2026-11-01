@@ -20,7 +20,7 @@ orchestrator together. Ctrl+C stops both. Everything runs with no API keys and n
 1. **Create an agent:** open `/launch`, connect your wallet, fill in the form, sign. The agent page opens.
 2. **Agent wallet:** the "Agent wallet" card shows its address. Fund it with devnet SOL
    (https://faucet.solana.com, or `pnpm wallet airdrop "<agent name>" 1`). Within about a minute the
-   orchestrator books it, and the treasury shows cash (at `SOL_USD`).
+   orchestrator books it, and the treasury shows cash (at the live SOL price).
 3. **Launch the coin:** as the creator wallet you see "Launch the coin". Your wallet needs about 0.05 devnet SOL.
    Approve step 1 (the coin), then step 2 (the fee split). The chart and holders fill from chain within a minute.
 4. **Suggest an idea:** type one in "Suggest an idea". The orchestrator filters it and puts it in the queue. Holders

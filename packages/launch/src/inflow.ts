@@ -7,7 +7,8 @@ export type InflowRpc = Pick<Connection, "getSignaturesForAddress" | "getTransac
 
 export interface InflowOptions {
   /** USD cents per SOL used to turn received SOL into runnable budget. TODO(verify): a live price source. */
-  solUsdCents: number;
+  /** USD cents per SOL at the moment SOL arrives: a fixed number, or a live price (SolUsd.cents). */
+  solUsdCents: number | (() => number);
   /** Signatures read per wallet per poll. */
   pageSize: number;
 }
@@ -61,7 +62,8 @@ export class InflowWatcher {
       const delta = (tx.meta.postBalances[i] ?? 0) - (tx.meta.preBalances[i] ?? 0);
       if (delta <= 0) continue;
       if (this.treasury.recordCreatorFee(agentId, delta, s.signature)) {
-        const cents = Math.floor((delta / 1e9) * this.opts.solUsdCents);
+        const perSol = typeof this.opts.solUsdCents === "function" ? this.opts.solUsdCents() : this.opts.solUsdCents;
+        const cents = Math.floor((delta / 1e9) * perSol);
         if (cents > 0) this.treasury.convertSolToUsd(agentId, delta, cents, `inflow:${s.signature}`);
         booked++;
         lamports += delta;

@@ -14,13 +14,17 @@ interface Sample {
 /**
  * Real numbers only: price samples the orchestrator reads from each coin's bonding curve on chain.
  * No coin, no numbers. Volume comes from on-chain trades the sampler records (trade_volume), every venue included.
- * USD values use the configured SOL price (TODO(verify): live SOL/USD source).
+ * USD values use the live SOL/USD price (SolUsd: CoinGecko, Coinbase, Jupiter; SOL_USD only as a fallback).
  */
 export class ChainMarket implements MarketProvider {
   constructor(
     private db: Db,
-    private solUsd: number,
+    private solUsdOf: number | (() => number),
   ) {}
+
+  private get solUsd(): number {
+    return typeof this.solUsdOf === "function" ? this.solUsdOf() : this.solUsdOf;
+  }
 
   private mint(agentId: string): string | undefined {
     const r = this.db

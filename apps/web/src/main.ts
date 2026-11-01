@@ -1,7 +1,7 @@
 import { ConfigError, systemClock } from "@devagent/core";
 import { boot, rpcUrl } from "@devagent/app";
 import { ChainMarket, DemoMarket } from "@devagent/dashboard";
-import { ChainBalances, ensurePlatformWallet, getLaunch, type TokenRpc } from "@devagent/launch";
+import { ChainBalances, SolUsd, ensurePlatformWallet, getLaunch, type TokenRpc } from "@devagent/launch";
 import { DEFAULT_DEPLOY } from "@devagent/platform";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { appsFromEnv } from "@devagent/gateway";
@@ -24,6 +24,9 @@ const env = process.env;
 const port = Number(env.WEB_PORT) || 3000;
 const host = env.WEB_HOST || "127.0.0.1";
 const rpc = new Connection(rpcUrl(app), "confirmed");
+// Live SOL/USD for every dollar figure on the site (SOL_USD from the environment only as a fallback).
+const solUsd = new SolUsd(Number(env.SOL_USD) || 150);
+void solUsd.refresh();
 // Voting weight is read from the chain, only for real (devnet or localnet) launches. Mocks and no launch: no voting.
 const tokenRpc: TokenRpc = {
   getParsedTokenAccountsByOwner: (owner, filter) =>
@@ -73,7 +76,7 @@ const web = createWebServer({
   treasury: app.treasury,
   kill: app.kill,
   dapp,
-  market: env.MARKET === "demo" ? new DemoMarket() : new ChainMarket(app.db, Number(env.SOL_USD) || 150),
+  market: env.MARKET === "demo" ? new DemoMarket() : new ChainMarket(app.db, () => solUsd.value()),
   deploy: { ...DEFAULT_DEPLOY, org: env.GITHUB_ORG || DEFAULT_DEPLOY.org },
   balancesFor: (agentId) => {
     const l = getLaunch(app.db, agentId);

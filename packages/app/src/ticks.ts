@@ -12,6 +12,7 @@ import {
   PriceSampler,
   backfillAgentWallets,
   openAgentSigner,
+  SolUsd,
 } from "@devagent/launch";
 import { createProvider, triageScript, MockProvider } from "@devagent/llm";
 import { Connection } from "@solana/web3.js";
@@ -71,8 +72,10 @@ export async function communityTick(app: Booted, adapters: Adapters, env = proce
 /** Chain round: give every agent a wallet, book SOL that reached agent wallets, pay out fees, run the buyback. */
 export function makeChainTick(app: Booted, env = process.env) {
   const rpc = new Connection(rpcUrl(app, env), "confirmed");
+  // SOL arriving in an agent wallet is booked at the live SOL/USD price (SOL_USD only as a fallback).
+  const solUsd = new SolUsd(Number(env.SOL_USD) || 150);
   const inflow = new InflowWatcher(app.db, app.treasury, rpc, {
-    solUsdCents: Math.round((Number(env.SOL_USD) || 150) * 100),
+    solUsdCents: () => solUsd.cents(),
     pageSize: 25,
   });
   // Pays out pump.fun creator fees so the agent's share reaches its wallet (needs the private seal key: gateway side).
@@ -107,6 +110,7 @@ export function makeChainTick(app: Booted, env = process.env) {
   const buybackEveryMs = (Number(env.BUYBACK_EVERY_HOURS) || 24) * 3_600_000;
   let lastBuyback = 0;
   return async () => {
+    await solUsd.refresh().catch(() => 0);
     const out = { wallets: 0, booked: 0, feePayouts: 0, buyback: "" };
     if (buyback && Date.now() - lastBuyback >= buybackEveryMs) {
       lastBuyback = Date.now();

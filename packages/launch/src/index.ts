@@ -14,3 +14,4 @@ export * from "./wallet-policy";
 export * from "./buyback";
 export * from "./trade";
 export * from "./volume";
+export * from "./sol-price";
