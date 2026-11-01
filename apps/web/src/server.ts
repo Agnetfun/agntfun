@@ -422,7 +422,7 @@ export function createWebServer(d: WebDeps): { server: Server; close(): void; st
       // Privy refuses wallet sign in on an IP address (its server rejects the SIWS message for 127.0.0.1, accepts
       // localhost). Pages opened on 127.0.0.1 move to localhost; API calls, files and OAuth callbacks stay put.
       const host = String(req.headers.host ?? "");
-      if (process.env.PRIVY_APP_ID && /^127\.0\.0\.1(:\d+)?$/.test(host) && !/^\/(api|oauth|files|vendor|meta|logo)\b/.test(path) && !/\.[a-z0-9]+$/i.test(path)) {
+      if (process.env.PRIVY_APP_ID && !/^https:/.test(process.env.PUBLIC_URL ?? "") && /^127\.0\.0\.1(:\d+)?$/.test(host) && !/^\/(api|oauth|files|vendor|meta|logo)\b/.test(path) && !/\.[a-z0-9]+$/i.test(path)) {
         res.writeHead(302, { location: `http://${host.replace("127.0.0.1", "localhost")}${req.url ?? "/"}`, "content-security-policy": CSP });
         return void res.end();
       }

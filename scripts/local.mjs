@@ -4,6 +4,8 @@ import { setTimeout } from "node:timers";
 import { existsSync, statSync } from "node:fs";
 
 const shell = process.platform === "win32";
+// Settings file: .env (devnet testing) by default, or the one given, e.g. .env.mainnet (pnpm local:mainnet).
+const envFile = process.argv[2] || ".env";
 // The Privy login bundle is generated (not in git). Build it when missing or older than its source (a second or two).
 const bundle = "apps/web/public/privy-bridge.js";
 if (!existsSync(bundle) || statSync("apps/web/privy/bridge.ts").mtimeMs > statSync(bundle).mtimeMs) {
@@ -12,8 +14,8 @@ if (!existsSync(bundle) || statSync("apps/web/privy/bridge.ts").mtimeMs > statSy
   if (b.status !== 0) console.log("Privy bundle build failed; email and Google login stay off.");
 }
 const procs = [
-  ["web", ["tsx", "--env-file=.env", "apps/web/src/main.ts"]],
-  ["orchestrator", ["tsx", "--env-file=.env", "apps/orchestrator/src/main.ts"]],
+  ["web", ["tsx", `--env-file=${envFile}`, "apps/web/src/main.ts"]],
+  ["orchestrator", ["tsx", `--env-file=${envFile}`, "apps/orchestrator/src/main.ts"]],
 ].map(([name, args]) => {
   const p = spawn("pnpm", ["exec", ...args], { stdio: ["ignore", "pipe", "pipe"], shell });
   const tag = (s) =>
