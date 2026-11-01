@@ -25,12 +25,10 @@ export const wordCount = (s: string) => (s.trim() ? s.trim().split(/\s+/).length
 export interface DeployOptions {
   /** GitHub organisation that holds agent repositories. Repository creation itself is the gateway's job (TODO(verify)). */
   org: string;
-  maxPerWallet: number;
   maxAgeMs: number;
 }
 export const DEFAULT_DEPLOY: DeployOptions = {
   org: "devagent-agents",
-  maxPerWallet: 3,
   maxAgeMs: 10 * 60_000,
 };
 export type DeployResult =
@@ -111,10 +109,7 @@ export function deployAgent(
     return no("Missing or invalid nonce.");
   if (!verifyWalletSignature(r.wallet, deployMessage({ ...r, name }), r.signature))
     return no("The signature does not match this wallet.");
-  const owned = db
-    .prepare("SELECT COUNT(*) c FROM agents WHERE deployer=? AND removed_at IS NULL")
-    .get(r.wallet) as { c: number };
-  if (owned.c >= o.maxPerWallet) return no(`One wallet can run at most ${o.maxPerWallet} agents.`);
+  // No cap per wallet (anyone can make more wallets anyway); mass spam is held back by the deploy rate limit per IP.
   if (db.prepare("SELECT 1 x FROM agents WHERE lower(name)=lower(?)").get(name))
     return no("That name is taken.");
   try {

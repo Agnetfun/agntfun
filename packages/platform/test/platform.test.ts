@@ -142,9 +142,7 @@ describe("deploy", () => {
     ).toMatch(/taken/);
     expect(deployAgent(db, clock, req(w, { name: "Second Agent" })).ok).toBe(true);
     expect(deployAgent(db, clock, req(w, { name: "Third Agent" })).ok).toBe(true);
-    expect(
-      (deployAgent(db, clock, req(w, { name: "Fourth Agent" })) as { reason: string }).reason,
-    ).toMatch(/at most 3/);
+    expect(deployAgent(db, clock, req(w, { name: "Fourth Agent" })).ok).toBe(true); // no cap per wallet
   });
 });
 
