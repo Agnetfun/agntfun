@@ -25,7 +25,7 @@ interface Bridge {
   onChange(f: Listener): void;
 }
 
-const cfg = (window as unknown as { PRIVY_CONFIG: { appId: string; cluster: string } }).PRIVY_CONFIG;
+const cfg = (window as unknown as { PRIVY_CONFIG: { appId: string; cluster: string; debug?: boolean } }).PRIVY_CONFIG;
 const mainnet = cfg.cluster === "mainnet-beta";
 const chain = mainnet ? "solana:mainnet" : "solana:devnet";
 // Public endpoints only for Privy's own wallet screens; the site's keyed RPC never reaches the browser.
@@ -33,7 +33,7 @@ const host = mainnet ? "api.mainnet-beta.solana.com" : "api.devnet.solana.com";
 
 // Test networks only: forward console errors to the server (data/client-log.jsonl), so a failed wallet login shows
 // its real reason without opening the browser console. Capped per page; never on mainnet.
-if (!mainnet) {
+if (!mainnet || cfg.debug) {
   let sent = 0;
   const text = (a: unknown) => {
     if (a instanceof Error) return `${a.name}: ${a.message} ${a.stack ?? ""}`;

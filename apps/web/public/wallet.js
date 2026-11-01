@@ -18,7 +18,7 @@
       (c) =>
         new Promise((resolve, reject) => {
           if (!c.privyAppId) return reject(new Error("Email and Google login are not set up on this site."));
-          window.PRIVY_CONFIG = { appId: c.privyAppId, cluster: c.cluster };
+          window.PRIVY_CONFIG = { appId: c.privyAppId, cluster: c.cluster, debug: !!c.clientDebug };
           const s = document.createElement("script");
           s.src = "/privy-bridge.js";
           s.onload = () => resolve(window.PrivyBridge);

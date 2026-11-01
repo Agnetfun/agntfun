@@ -256,7 +256,7 @@ export function createWebServer(d: WebDeps): { server: Server; close(): void; st
       let file = "data/csp-reports.jsonl";
       let entry: Record<string, string>;
       if (path === "/api/client-log") {
-        if (process.env.SOLANA_CLUSTER === "mainnet-beta") throw new Error("off on mainnet");
+        if (process.env.SOLANA_CLUSTER === "mainnet-beta" && process.env.CLIENT_DEBUG !== "1") throw new Error("off on mainnet");
         file = "data/client-log.jsonl";
         entry = { level: String(j.level ?? "").slice(0, 10), msg: String(j.msg ?? "").slice(0, 1500) };
       } else {

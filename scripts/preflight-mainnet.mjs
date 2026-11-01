@@ -47,6 +47,7 @@ wish(!!(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET), "GitHub app keys empt
 wish(!!(env.X_CLIENT_ID && env.X_CLIENT_SECRET), "X app keys empty: creators cannot connect X");
 wish(Number(env.VOTE_MIN_VOTERS || 3) >= 2, "VOTE_MIN_VOTERS below 2 lets one wallet decide alone");
 wish(!(env.OPENROUTER_MODEL_ID || "").endsWith(":free"), "OPENROUTER_MODEL_ID is a free test model");
+wish(env.CLIENT_DEBUG !== "1", "CLIENT_DEBUG=1 forwards browser errors to the server: a test switch, turn it off for launch");
 
 for (const w of warnings) console.log(`warn  ${w}`);
 for (const e of errors) console.log(`FAIL  ${e}`);

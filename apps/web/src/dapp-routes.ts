@@ -138,6 +138,8 @@ export function createDappRoutes(d: DappDeps) {
             platformToken: d.platformToken ?? null,
             // Public app id (not a secret): turns on "Email, Google or any wallet" through Privy.
             privyAppId: process.env.PRIVY_APP_ID || null,
+            // CLIENT_DEBUG=1: the Privy bundle forwards its errors to data/client-log.jsonl even on mainnet (tests only).
+            clientDebug: process.env.CLIENT_DEBUG === "1",
           }),
         );
       if (path === "/api/burns") return Promise.resolve(this.burns());
