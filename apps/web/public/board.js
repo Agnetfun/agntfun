@@ -5,7 +5,6 @@
   let all = [];
   let rank = "proof";
   let trend = "live";
-  let cluster = "devnet";
   let first = true;
   const prevMc = new Map();
 
@@ -70,7 +69,8 @@
 
   function trendCard(a) {
     const page = "/agent/" + encodeURIComponent(a.id);
-    const tradeable = a.mint && cluster === "mainnet-beta";
+    // Any coin trades on its own agent page (curve or PumpSwap pool), on every network.
+    const tradeable = !!a.mint;
     return h(
       "article",
       { class: "tcard2" },
@@ -95,12 +95,8 @@
         h("a", { class: "btn small", href: page + "#scr-h" }, isLive(a) ? "Watch live" : "Replay"),
         h("a", { class: "btn small", href: page + "#sg-h" }, "Suggest"),
         tradeable
-          ? h(
-              "a",
-              { class: "btn small", href: "https://pump.fun/coin/" + encodeURIComponent(a.mint), rel: "noopener noreferrer", target: "_blank" },
-              "Trade",
-            )
-          : h("button", { class: "btn small", type: "button", disabled: true }, "Trade"),
+          ? h("a", { class: "btn small", href: page + "#tr-h" }, "Trade")
+          : h("button", { class: "btn small", type: "button", disabled: true, title: "No coin yet" }, "Trade"),
       ),
     );
   }
@@ -266,13 +262,6 @@
   press("[data-rank]", "rank", (v) => (rank = v));
   press("[data-trend]", "trend", (v) => (trend = v));
   $("q").addEventListener("input", renderTable);
-  fetch("/api/config")
-    .then((r) => r.json())
-    .then((c) => {
-      cluster = c.cluster;
-      if (all.length) render();
-    })
-    .catch(() => {});
   refresh();
   live(refresh);
 })();
