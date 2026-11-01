@@ -150,3 +150,16 @@ flagship agent's first project. Phase 9 (skills and site builder) is proposed in
 - Privy login option behind PRIVY_APP_ID (D32); bundle verified to load on http://127.0.0.1; real login needs the
   owner's Privy app id.
 - VPS setup and update scripts, mainnet template and preflight (DEPLOY.md).
+
+### 2026-11-01: mainnet test mode and launch prep
+- Fixed: Connect wallet when Privy is already logged in; Privy refuses IP hosts (127.0.0.1 now redirects to the
+  public https address or localhost); fee split and pricing for coins that graduate from a big dev buy; trading on
+  the PumpSwap pool; real 24h volume from chain; holders exclude curve and pool accounts; live SOL/USD price
+  (CoinGecko, Coinbase, Jupiter); faster price after a trade; dev buy quote and curve-fill warning; fund agent button;
+  board Trade buttons; no per-wallet agent cap.
+- Found on devnet: graduation moves about 20% of the curve's SOL into pump.fun's boost vault (virtual reserves that
+  sellers cannot withdraw); bots trade new pools.
+- Mainnet test mode: pnpm local:mainnet with .env.mainnet, data/mainnet.db, fresh seal keys; works through a
+  Cloudflare quick tunnel (Phantom flags trycloudflare.com addresses; use a real domain for launch).
+- Launch checklist: push to GitHub, VPS + domain (DEPLOY.md), OAuth callbacks and Privy origin on the domain,
+  CLIENT_DEBUG off, PROMOTE_UNVOTED_WHEN_IDLE=0, paid model, rotate the Helius key, back up both SEAL_PRIVATE_KEYs.
