@@ -13,7 +13,7 @@ interface Sample {
 
 /**
  * Real numbers only: price samples the orchestrator reads from each coin's bonding curve on chain.
- * No coin, no numbers. Volume is not derived from samples (needs trade history), so it reads 0.
+ * No coin, no numbers. Volume comes from on-chain trades the sampler records (trade_volume), every venue included.
  * USD values use the configured SOL price (TODO(verify): live SOL/USD source).
  */
 export class ChainMarket implements MarketProvider {
@@ -44,7 +44,9 @@ export class ChainMarket implements MarketProvider {
       source: "live",
       priceUsd: last.price_sol * this.solUsd,
       mcapUsd: last.mcap_sol * this.solUsd,
-      volume24hUsd: 0,
+      volume24hUsd:
+        ((this.db.prepare("SELECT COALESCE(SUM(sol),0) s FROM trade_volume WHERE mint=? AND ts > ?").get(mint, now - DAY) as { s: number }).s) *
+        this.solUsd,
       change24hPct: prev.price_sol > 0 ? (last.price_sol / prev.price_sol - 1) * 100 : 0,
       holders: last.holders,
     };
@@ -59,6 +61,12 @@ export class ChainMarket implements MarketProvider {
       .prepare("SELECT ts, price_sol FROM price_samples WHERE mint=? AND ts >= ? ORDER BY ts")
       .all(mint, from) as { ts: number; price_sol: number }[];
     const out: Candle[] = [];
+    // Volume per bucket, in USD, from the recorded on-chain trades.
+    const vol = new Map<number, number>();
+    for (const v of this.db.prepare("SELECT ts, sol FROM trade_volume WHERE mint=? AND ts >= ?").all(mint, from) as { ts: number; sol: number }[]) {
+      const t = Math.floor(v.ts / step) * step;
+      vol.set(t, (vol.get(t) ?? 0) + v.sol * this.solUsd);
+    }
     for (const r of rows) {
       const t = Math.floor(r.ts / step) * step;
       const p = r.price_sol * this.solUsd;
@@ -67,7 +75,7 @@ export class ChainMarket implements MarketProvider {
         c.h = Math.max(c.h, p);
         c.l = Math.min(c.l, p);
         c.c = p;
-      } else out.push({ t, o: c ? c.c : p, h: p, l: p, c: p, v: 0 });
+      } else out.push({ t, o: c ? c.c : p, h: p, l: p, c: p, v: vol.get(t) ?? 0 });
     }
     return out;
   }

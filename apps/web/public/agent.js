@@ -153,7 +153,8 @@
       stat("Market cap", usd(s.mcapUsd)),
       stat("Price", price(s.priceUsd) + " ", s.change24hPct >= 0 ? "up" : "down"),
       stat("24h volume", usd(s.volume24hUsd)),
-      stat("Holders", String(s.holders)),
+      // The RPC lists at most 20 largest accounts, so 20 means "20 or more".
+      stat("Holders", s.holders >= 20 ? "20+" : String(s.holders)),
     );
     ms.children[1].lastChild.append(h("span", { class: "note" }, pct(s.change24hPct)));
   }

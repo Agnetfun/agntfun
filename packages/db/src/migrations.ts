@@ -376,6 +376,24 @@ CREATE TABLE attachments (
 CREATE INDEX attachments_agent ON attachments(agent_id);
 `;
 
+// On-chain trade volume per coin (each trade once, by signature) and where the reader left off on each venue.
+const v18 = `
+CREATE TABLE trade_volume (
+  mint TEXT NOT NULL,
+  signature TEXT NOT NULL,
+  ts INTEGER NOT NULL,
+  sol REAL NOT NULL,
+  PRIMARY KEY (mint, signature)
+);
+CREATE INDEX trade_volume_ts ON trade_volume(mint, ts);
+CREATE TABLE trade_cursor (
+  mint TEXT NOT NULL,
+  venue TEXT NOT NULL,
+  last_signature TEXT NOT NULL,
+  PRIMARY KEY (mint, venue)
+);
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: "schema_v0", sql: v1 },
   { version: 2, name: "phase1_llm_tasks", sql: v2 },
@@ -394,4 +412,5 @@ export const MIGRATIONS: Migration[] = [
   { version: 15, name: "connection_health", sql: v15 },
   { version: 16, name: "triage_retries", sql: v16 },
   { version: 17, name: "attachments", sql: v17 },
+  { version: 18, name: "trade_volume", sql: v18 },
 ];

@@ -3,6 +3,8 @@ import type { Clock } from "@devagent/core";
 import type { Db } from "@devagent/db";
 import type { PumpSdk } from "@pump-fun/pump-sdk";
 import { PublicKey, type Connection } from "@solana/web3.js";
+import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { collectVolume, type VolumeRpc } from "./volume";
 
 // Same CommonJS loading as pumpfun.ts (the SDK's ESM entry does not load under Node).
 const sdk = createRequire(import.meta.url)("@pump-fun/pump-sdk") as {
@@ -13,7 +15,10 @@ const sdk = createRequire(import.meta.url)("@pump-fun/pump-sdk") as {
 };
 
 export type PriceRpc = Pick<Connection, "getAccountInfo" | "getTokenLargestAccounts"> &
-  Partial<Pick<Connection, "getTokenAccountBalance">>;
+  Partial<Pick<Connection, "getTokenAccountBalance">> &
+  Partial<VolumeRpc>;
+
+const TOKEN_DECIMALS = 6;
 
 /**
  * A graduated coin trades in its PumpSwap pool: price = (SOL in the pool + the pool's virtualQuoteReserves) / tokens
@@ -21,29 +26,36 @@ export type PriceRpc = Pick<Connection, "getAccountInfo" | "getTokenLargestAccou
  * simulated buys and sells on a graduated devnet coin (official SDK simulateMultiHopSwap) match this price after
  * fees, and miss it by about 20% without the virtual reserves.
  */
-async function poolPrice(rpc: PriceRpc, mint: PublicKey): Promise<number | null> {
+interface PoolInfo {
+  price: number;
+  pool: PublicKey;
+  baseVault: PublicKey;
+  quoteVault: PublicKey;
+}
+async function poolInfo(rpc: PriceRpc, mint: PublicKey): Promise<PoolInfo | null> {
   if (!rpc.getTokenAccountBalance) return null;
   try {
-    const pool = await sdk.getPumpAmmProgram(rpc as unknown as Connection).account.pool.fetch(sdk.canonicalPumpPoolPda(mint));
+    const pool = sdk.canonicalPumpPoolPda(mint);
+    const p = await sdk.getPumpAmmProgram(rpc as unknown as Connection).account.pool.fetch(pool);
     const [base, quote] = await Promise.all([
-      rpc.getTokenAccountBalance(pool.poolBaseTokenAccount, "confirmed"),
-      rpc.getTokenAccountBalance(pool.poolQuoteTokenAccount, "confirmed"),
+      rpc.getTokenAccountBalance(p.poolBaseTokenAccount, "confirmed"),
+      rpc.getTokenAccountBalance(p.poolQuoteTokenAccount, "confirmed"),
     ]);
     const tokens = Number(base.value.amount) / 10 ** TOKEN_DECIMALS;
-    const sol = (Number(quote.value.amount) + Number(pool.virtualQuoteReserves?.toString() ?? 0)) / 1e9;
-    return tokens > 0 ? sol / tokens : null;
+    const sol = (Number(quote.value.amount) + Number(p.virtualQuoteReserves?.toString() ?? 0)) / 1e9;
+    if (!(tokens > 0)) return null;
+    return { price: sol / tokens, pool, baseVault: p.poolBaseTokenAccount, quoteVault: p.poolQuoteTokenAccount };
   } catch {
     return null; // no pool yet (just graduated) or the RPC refused
   }
 }
 
-const TOKEN_DECIMALS = 6;
+/** The curve's own token account, under either token program (pump.fun coins use Token-2022 since create_v2). */
+const curveAccounts = (mint: PublicKey) =>
+  [TOKEN_PROGRAM_ID, TOKEN_2022_PROGRAM_ID].map((p) =>
+    getAssociatedTokenAddressSync(mint, sdk.bondingCurvePda(mint), true, p).toBase58(),
+  );
 
-/**
- * Reads each launched coin's bonding curve straight from chain and stores a price sample.
- * Price per token in SOL = virtual quote reserves / virtual token reserves (pump.fun constant product curve).
- * Holders is the count of non empty accounts among the largest token accounts (the RPC returns at most 20).
- */
 export class PriceSampler {
   constructor(
     private db: Db,
@@ -75,12 +87,22 @@ export class PriceSampler {
     const vSol = Number(bc.virtualQuoteReserves.toString()) / 1e9;
     const supply = Number(bc.tokenTotalSupply.toString()) / 10 ** TOKEN_DECIMALS;
     // On the curve the price comes from its virtual reserves; once graduated, from the PumpSwap pool.
-    const price = bc.complete ? await poolPrice(this.rpc, m) : vTok > 0 ? vSol / vTok : null;
+    const pool = bc.complete ? await poolInfo(this.rpc, m) : null;
+    const price = bc.complete ? (pool?.price ?? null) : vTok > 0 ? vSol / vTok : null;
     if (price === null || !(price > 0)) return false;
+    // Volume from the chain (every trade, wherever it was made); a failed read never blocks the price.
+    await collectVolume(
+      this.db,
+      this.rpc,
+      mint,
+      pool ? { kind: "pool", address: pool.pool, quoteVault: pool.quoteVault } : { kind: "curve", address: sdk.bondingCurvePda(m) },
+    ).catch(() => 0);
+    // The curve's and the pool's own token accounts hold supply, not people: they are not holders.
+    const notHolders = new Set([...curveAccounts(m), ...(pool ? [pool.baseVault.toBase58()] : [])]);
     let holders = 0;
     try {
       const largest = (await this.rpc.getTokenLargestAccounts(m, "confirmed")).value.filter(
-        (a) => Number(a.amount) > 0,
+        (a) => Number(a.amount) > 0 && !notHolders.has(a.address.toBase58()),
       );
       holders = largest.length;
       // Token accounts, not owner wallets (the bonding curve's own account is usually rank 1).
