@@ -86,11 +86,9 @@
     // With Privy on, Privy alone talks to wallet extensions: two connectors on one Phantom fight over it.
     const privyOn = !!(await config()).privyAppId;
     const w = saved();
-    if (privyOn && w !== "privy") {
-      keep(null);
-      return;
-    }
-    if (w === "privy") {
+    if (privyOn && w && w !== "privy") keep(null);
+    // With Privy on, pick up a wallet Privy already has (its session outlives this tab), saved choice or not.
+    if (privyOn) {
       // A Privy session survives reloads; reconnect quietly only if it is still logged in.
       try {
         const p = await loadPrivy();

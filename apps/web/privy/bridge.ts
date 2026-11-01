@@ -5,8 +5,14 @@
 // user's wallet; this site never sees them.
 import { createElement, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
-import { PrivyProvider, useLogin, usePrivy } from "@privy-io/react-auth";
-import { toSolanaWalletConnectors, useSignMessage, useSignTransaction, useWallets } from "@privy-io/react-auth/solana";
+import { PrivyProvider, useConnectWallet, useLogin, usePrivy } from "@privy-io/react-auth";
+import {
+  toSolanaWalletConnectors,
+  useCreateWallet,
+  useSignMessage,
+  useSignTransaction,
+  useWallets,
+} from "@privy-io/react-auth/solana";
 import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 
 type Listener = (address: string) => void;
@@ -69,8 +75,14 @@ const bridge: Bridge = {
 (window as unknown as { PrivyBridge: Bridge }).PrivyBridge = bridge;
 
 function Bind() {
-  const { ready, authenticated, logout } = usePrivy();
-  const { wallets } = useWallets();
+  const { ready, authenticated, logout, user } = usePrivy();
+  const { ready: walletsReady, wallets } = useWallets();
+  const { createWallet } = useCreateWallet();
+  const fail = (e: unknown) => {
+    pending?.reject(new Error(e === "exited_link_flow" || e === "exited_auth_flow" ? "Wallet connection was cancelled." : `Could not connect (${String(e)}).`));
+    pending = null;
+  };
+  const { connectWallet } = useConnectWallet({ onError: fail });
   const { signMessage } = useSignMessage();
   const { signTransaction } = useSignTransaction();
   const { login } = useLogin({
@@ -94,12 +106,30 @@ function Bind() {
     listeners.slice().forEach((f) => f(address));
   }, [wallet?.address]);
 
+  const latest = useRef({ walletsReady, user });
+  latest.current = { walletsReady, user };
+
   bridge.connect = () =>
     new Promise((resolve, reject) => {
       if (!ready) return reject(new Error("Privy is still loading. Try again in a moment."));
       if (bridge.address) return resolve({ publicKey: { toString: () => bridge.address } });
       pending = { resolve: (a) => resolve({ publicKey: { toString: () => a } }), reject };
-      login();
+      if (!authenticated) return login();
+      // Already logged in (Privy keeps the session across reloads) but no wallet on this page. Calling login() here
+      // does nothing ("user is already logged in"), so attach a wallet instead: wait briefly for an embedded wallet
+      // to load, reconnect an external one (Phantom and others), or create the embedded Solana wallet.
+      const linked = (latest.current.user?.linkedAccounts ?? []) as Array<{ type: string; chainType?: string; walletClientType?: string }>;
+      const solana = linked.filter((a) => a.type === "wallet" && a.chainType === "solana");
+      const embedded = solana.some((a) => a.walletClientType === "privy");
+      const attach = () => {
+        if (!pending || bridge.address) return;
+        if (embedded || solana.length === 0) {
+          if (embedded) return connectWallet(); // embedded wallet never showed up: let the user pick a wallet
+          createWallet().catch((e) => fail(e instanceof Error ? e.message : e));
+        } else connectWallet();
+      };
+      if (embedded && !latest.current.walletsReady) setTimeout(attach, 3000);
+      else attach();
     });
   bridge.disconnect = async () => {
     await logout();
