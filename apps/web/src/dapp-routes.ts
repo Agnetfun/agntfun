@@ -13,6 +13,7 @@ import {
   submitLaunch,
   type LaunchRpc,
   type WebLaunchConfig,
+  devBuyQuote,
 } from "@devagent/launch";
 import { PublicKey, type Connection } from "@solana/web3.js";
 import type { ConnectRoutes, Redirect } from "./connect-routes";
@@ -120,6 +121,14 @@ export function createDappRoutes(d: DappDeps) {
         return Promise.resolve({ status: 200, type: "text/javascript; charset=utf-8", body: web3Browser });
       if (path === "/vendor/charts.js")
         return Promise.resolve({ status: 200, type: "text/javascript; charset=utf-8", body: chartsBrowser });
+      // What a dev buy of ?sol= gets on a new coin, and the amount at which it fills the whole curve.
+      if (path === "/api/launch/quote") {
+        const sol = Number(query.get("sol"));
+        if (!(sol > 0 && sol <= 50)) return Promise.resolve(bad("Enter between 0 and 50 SOL."));
+        return devBuyQuote(d.rpc as unknown as Connection, sol)
+          .then((q) => ok(q))
+          .catch(() => bad("Could not read pump.fun's settings. Try again in a moment.", 502));
+      }
       if (path === "/api/config")
         return Promise.resolve(
           ok({

@@ -57,6 +57,38 @@
     $("devbuy-row").hidden = !!agent.mint; // the dev buy only exists in the create transaction
   }
 
+  // Live dev buy quote: tokens and share of supply, and a plain warning when the amount fills the whole curve
+  // (pump.fun then charges only the cost of the curve, and the coin graduates in the same transaction).
+  const DEVBUY_HINT = "Bought in the same transaction as the coin, so you get the first tokens before anyone else. Public on chain.";
+  let quoteTimer = null;
+  $("devbuy").addEventListener("input", () => {
+    clearTimeout(quoteTimer);
+    const note = $("devbuy-note");
+    const sol = Number($("devbuy").value.trim().replace(",", "."));
+    note.className = "note muted mt-2";
+    if (!(sol > 0)) return void (note.textContent = DEVBUY_HINT);
+    note.textContent = "Getting a quote…";
+    quoteTimer = setTimeout(async () => {
+      try {
+        const r = await fetch("/api/launch/quote?sol=" + encodeURIComponent(sol));
+        const q = await r.json();
+        if (!r.ok) throw new Error(q.error);
+        const tok = q.tokens >= 1e6 ? (q.tokens / 1e6).toFixed(1) + "M" : Math.round(q.tokens).toLocaleString();
+        if (q.fillsCurve) {
+          note.className = "note mt-2 err";
+          note.textContent =
+            "This buys the whole curve (" + tok + " tokens, " + q.supplyPct.toFixed(1) + "% of supply). Only about " +
+            q.fillSol.toFixed(3) + " SOL is spent and the coin graduates at once. Enter less than " + q.fillSol.toFixed(2) + " SOL to stay on the curve.";
+        } else {
+          note.textContent =
+            "You get about " + tok + " tokens (" + q.supplyPct.toFixed(1) + "% of supply). The curve fills at about " + q.fillSol.toFixed(3) + " SOL.";
+        }
+      } catch (e) {
+        note.textContent = e.message || DEVBUY_HINT;
+      }
+    }, 350);
+  });
+
   /** Dev buy in SOL from the launch card: empty means none; refuses nonsense before the wallet opens. */
   function devBuySol() {
     const raw = $("devbuy").value.trim().replace(",", ".");

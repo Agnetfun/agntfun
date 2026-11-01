@@ -4,12 +4,13 @@ import { NATIVE_MINT } from "@solana/spl-token";
 import { Keypair, PublicKey, Transaction, type Connection } from "@solana/web3.js";
 import BN from "bn.js";
 // The SDK's ESM entry cannot be loaded by Node (its anchor dependency is CommonJS), so load the CommonJS build.
-const { PUMP_SDK, OnlinePumpSdk, getBuyTokenAmountFromSolAmount, bondingCurvePda, canonicalPumpPoolPda, getPumpAmmProgram } = createRequire(
+const { PUMP_SDK, OnlinePumpSdk, getBuyTokenAmountFromSolAmount, getBuySolAmountFromTokenAmount, bondingCurvePda, canonicalPumpPoolPda, getPumpAmmProgram } = createRequire(
   import.meta.url,
 )("@pump-fun/pump-sdk") as {
   PUMP_SDK: PumpSdk;
   OnlinePumpSdk: new (c: Connection) => OnlineSdk;
   getBuyTokenAmountFromSolAmount: typeof import("@pump-fun/pump-sdk").getBuyTokenAmountFromSolAmount;
+  getBuySolAmountFromTokenAmount: typeof import("@pump-fun/pump-sdk").getBuySolAmountFromTokenAmount;
   bondingCurvePda: typeof import("@pump-fun/pump-sdk").bondingCurvePda;
   canonicalPumpPoolPda: typeof import("@pump-fun/pump-sdk").canonicalPumpPoolPda;
   getPumpAmmProgram: typeof import("@pump-fun/pump-sdk").getPumpAmmProgram;
@@ -57,6 +58,33 @@ async function frame(
   const tx = new Transaction({ feePayer: payer, recentBlockhash: blockhash });
   tx.add(...ix);
   return tx;
+}
+
+export interface DevBuyQuote {
+  /** Tokens the dev buy gets (whole tokens), capped at what the curve holds. */
+  tokens: number;
+  supplyPct: number;
+  /** SOL that buying the whole curve costs on this network, fees included. */
+  fillSol: number;
+  /** True when the amount buys the whole curve: only fillSol is spent and the coin graduates at once. */
+  fillsCurve: boolean;
+}
+
+/**
+ * What a dev buy of `sol` gets on a brand new coin, from pump.fun's live global and fee settings (official SDK quote
+ * functions). A buy can never take more than the curve holds: past that, pump.fun charges only the cost of the
+ * whole curve and the coin graduates in the same transaction.
+ */
+export async function devBuyQuote(rpc: Connection, sol: number): Promise<DevBuyQuote> {
+  const online = new OnlinePumpSdk(rpc);
+  const [global, feeConfig] = await Promise.all([online.fetchGlobal(), online.fetchFeeConfig()]);
+  const base = { global, feeConfig, mintSupply: null, bondingCurve: null, quoteMint: NATIVE_MINT };
+  const cap = BigInt(global.initialRealTokenReserves.toString());
+  const supply = Number(global.tokenTotalSupply.toString());
+  const want = BigInt(getBuyTokenAmountFromSolAmount({ ...base, amount: new BN(Math.round(sol * 1e9)) }).toString());
+  const tokens = want < cap ? want : cap;
+  const fillSol = Number(getBuySolAmountFromTokenAmount({ ...base, amount: new BN(cap.toString()) }).toString()) / 1e9;
+  return { tokens: Number(tokens) / 1e6, supplyPct: (Number(tokens) / supply) * 100, fillSol, fillsCurve: want >= cap };
 }
 
 /** A dev buy above this is almost surely a typo (100 instead of 1.00); the creator can buy more on the curve later. */
