@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@devagent/app": "workspace:*",
+    "@devagent/community": "workspace:*",
     "@devagent/core": "workspace:*",
     "@devagent/db": "workspace:*",
     "@devagent/gateway": "workspace:*",

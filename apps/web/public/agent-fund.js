@@ -55,11 +55,15 @@
       const tx = await window.Wallet.signTransaction(prep.tx);
       say("Sent. Waiting for the network…");
       const out = await window.Wallet.postJson("/api/fund/submit", { agentId: id, wallet, tx });
-      celebrate();
-      toast("Funded with " + sol + " SOL");
+      if (!out.pending) {
+        celebrate();
+        toast("Funded with " + sol + " SOL");
+      }
       say(
         [
-          "Funded with " + sol + " SOL. The treasury counts it within a minute. ",
+          out.pending
+            ? "Sent, still confirming. Check the transaction before sending again. "
+            : "Funded with " + sol + " SOL. The treasury counts it within a minute. ",
           h("a", { href: explorer(out.signature), target: "_blank", rel: "noopener noreferrer" }, "View transaction"),
         ],
         "ok",

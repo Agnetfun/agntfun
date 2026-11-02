@@ -166,12 +166,29 @@ export function createDappRoutes(d: DappDeps) {
           note: p.reason ?? null,
         };
       });
-      const sum = (k: string) => items.filter((i) => i.kind === k).reduce((s, i) => s + i.sol, 0);
-      const burned = items.filter((i) => i.kind === "burned").reduce((s, i) => s + BigInt(i.tokens ?? "0"), 0n);
+      // Totals cover all history, not only the 100 rows listed.
+      const all = d.db
+        .prepare("SELECT type, payload_json FROM events WHERE type IN ('buyback.burned', 'buyback.to_infra')")
+        .all() as { type: string; payload_json: string }[];
+      let buybackSol = 0;
+      let infraSol = 0;
+      let burned = 0n;
+      for (const r of all) {
+        const p = JSON.parse(r.payload_json) as { lamports?: number; tokens?: string };
+        if (r.type === "buyback.to_infra") infraSol += (p.lamports ?? 0) / 1e9;
+        else {
+          buybackSol += (p.lamports ?? 0) / 1e9;
+          try {
+            burned += BigInt(p.tokens ?? "0");
+          } catch {
+            /* malformed amount: skip */
+          }
+        }
+      }
       return ok({
         cluster: d.launch.cluster,
         token: d.platformToken ?? null,
-        totals: { buybackSol: sum("burned"), infraSol: sum("to_infra"), tokensBurned: burned.toString() },
+        totals: { buybackSol, infraSol, tokensBurned: burned.toString() },
         items,
       });
     },

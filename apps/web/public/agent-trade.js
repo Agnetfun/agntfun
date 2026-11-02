@@ -76,9 +76,10 @@
   let last = null;
   const FRESH_MS = 20000;
   const prepKey = () => [window.Wallet.address(), side, amountRaw(), slippage].join("|");
-  async function prepare() {
+  // Live quotes use their own route (and rate budget) so typing never uses up the trades.
+  async function prepare(path) {
     const key = prepKey();
-    const prep = await window.Wallet.postJson("/api/trade/prepare", {
+    const prep = await window.Wallet.postJson(path || "/api/trade/prepare", {
       agentId: id,
       wallet: window.Wallet.address(),
       side,
@@ -101,7 +102,7 @@
     quoteTimer = setTimeout(async () => {
       $("tp-out").textContent = "Getting a price…";
       try {
-        const q = (await prepare()).quote;
+        const q = (await prepare("/api/trade/quote")).quote;
         if (seq !== quoteSeq) return;
         $("tp-out").textContent =
           side === "buy"
@@ -138,7 +139,7 @@
       const out = await window.Wallet.postJson("/api/trade/submit", { agentId: id, wallet: window.Wallet.address(), tx: signed });
       say(
         [
-          (side === "buy" ? "Bought. " : "Sold. "),
+          out.pending ? "Sent, still confirming. Check the transaction before trying again. " : side === "buy" ? "Bought. " : "Sold. ",
           h("a", { href: explorer(out.signature), rel: "noopener noreferrer", target: "_blank" }, "View transaction"),
         ],
         "ok",

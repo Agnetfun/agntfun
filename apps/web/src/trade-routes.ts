@@ -32,7 +32,43 @@ const str = (v: unknown, max = 200) => (typeof v === "string" ? v.slice(0, max) 
 const TTL = 2 * 60_000;
 
 export function createTradeRoutes(d: TradeDeps) {
-  const pending = new Map<string, { message: string; side: Side; at: number }>();
+  // The last few prepared transactions per wallet and agent: a live quote and the Buy click can both prepare, and
+  // whichever the wallet signs must still match. Each entry is used once.
+  type Prepared = { message: string; side: Side; at: number };
+  const pending = new Map<string, Prepared[]>();
+  const remember = (key: string, p: Prepared) => {
+    const list = (pending.get(key) ?? []).filter((x) => Date.now() - x.at <= TTL);
+    list.push(p);
+    pending.set(key, list.slice(-4));
+    for (const [k, v] of pending) if (v.every((x) => Date.now() - x.at > TTL)) pending.delete(k);
+  };
+  /** The prepared entry this signed transaction is, removed so it cannot be relayed twice. */
+  const take = (key: string, tx: Transaction): Prepared | undefined => {
+    const list = pending.get(key) ?? [];
+    const i = list.findIndex((x) => Date.now() - x.at <= TTL && matchesPrepared(x.message, tx));
+    return i < 0 ? undefined : list.splice(i, 1)[0];
+  };
+  /**
+   * Once a transaction is broadcast the user's money may move, so never answer "try again" after that. A slow or
+   * failed confirmation returns the signature as "sent, still confirming" (202); only an on-chain rejection is a
+   * failure, and that one is safe to retry.
+   */
+  const settle = async (signature: string, onConfirmed: () => void | Promise<void>): Promise<Reply> => {
+    try {
+      await confirmSignature(d.rpc, signature);
+    } catch (e) {
+      const m = e instanceof Error ? e.message : "";
+      if (/rejected/i.test(m))
+        return { status: 400, body: { error: "The network rejected this transaction. Nothing moved; you can try again.", signature } };
+      return { status: 202, body: { signature, pending: true, note: "Sent. It is still confirming: check the transaction before trying again." } };
+    }
+    try {
+      await onConfirmed();
+    } catch {
+      /* bookkeeping only; the transaction itself went through */
+    }
+    return { status: 200, body: { signature } };
+  };
   const sampler = new PriceSampler(d.db, d.clock, d.rpc);
   const coin = (agentId: string) => {
     const l = getLaunch(d.db, agentId);
@@ -59,32 +95,35 @@ export function createTradeRoutes(d: TradeDeps) {
         const tx = new Transaction({ feePayer: from, recentBlockhash: blockhash }).add(
           SystemProgram.transfer({ fromPubkey: from, toPubkey: new PublicKey(to), lamports }),
         );
-        pending.set(key, { message: tx.serializeMessage().toString("base64"), side: "buy", at: Date.now() });
+        remember(key, { message: tx.serializeMessage().toString("base64"), side: "buy", at: Date.now() });
         return { status: 200, body: { tx: tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64"), lamports, to } };
       }
-      const p = pending.get(key);
-      if (!p || Date.now() - p.at > TTL) return { status: 400, body: { error: "This request expired. Try again." } };
-      const tx = Transaction.from(Buffer.from(str(b.tx, 4000), "base64"));
-      if (!matchesPrepared(p.message, tx)) return { status: 400, body: { error: "The signed transfer is not the one this site prepared." } };
+      let tx: Transaction;
+      try {
+        tx = Transaction.from(Buffer.from(str(b.tx, 4000), "base64"));
+      } catch {
+        return { status: 400, body: { error: "That is not a valid signed transfer." } };
+      }
       if (!tx.verifySignatures()) return { status: 400, body: { error: "The transfer is missing your signature." } };
-      pending.delete(key);
+      if (!take(key, tx)) return { status: 400, body: { error: "The signed transfer is not one this site prepared, or it expired. Try again." } };
       const signature = await d.rpc.sendRawTransaction(tx.serialize());
-      await confirmSignature(d.rpc, signature);
-      appendEvent(d.db, d.clock, { type: "agent.funded", agentId, payload: { from: wallet, signature } });
-      return { status: 200, body: { signature } };
+      return settle(signature, () => {
+        appendEvent(d.db, d.clock, { type: "agent.funded", agentId, payload: { from: wallet, signature } });
+      });
     } catch (e) {
       const m = e instanceof Error ? e.message : "";
       if (/insufficient|0x1\b|lamports/i.test(m)) return { status: 400, body: { error: "Not enough SOL in your wallet for this amount and the fee." } };
       if (/Invalid public key|Non-base58/i.test(m)) return { status: 400, body: { error: "Connect your wallet first." } };
       if (/blockhash|expired/i.test(m)) return { status: 400, body: { error: "The transfer expired before it was sent. Try again." } };
-      if (e instanceof Error && /not valid|Transaction/.test(m)) return { status: 400, body: { error: "That is not a valid signed transfer." } };
-      return { status: 502, body: { error: "The network call failed. Try again in a moment." } };
+      return { status: 502, body: { error: "The network call failed before anything was sent. Try again in a moment." } };
     }
   }
 
   return {
     postPaths: {
       "/api/trade/prepare": [60, 600_000],
+      // Live quotes while typing: their own, larger budget, so quoting never uses up the trades.
+      "/api/trade/quote": [600, 600_000],
       "/api/trade/submit": [30, 600_000],
       "/api/fund/prepare": [30, 600_000],
       "/api/fund/submit": [30, 600_000],
@@ -98,32 +137,29 @@ export function createTradeRoutes(d: TradeDeps) {
       if (!l) return { status: 400, body: { error: "This agent has no coin yet." } };
       const key = `${wallet}:${agentId}`;
       try {
-        if (path === "/api/trade/prepare") {
+        if (path === "/api/trade/prepare" || path === "/api/trade/quote") {
           const side: Side = b.side === "sell" ? "sell" : "buy";
           const out = await buildTrade(d.rpc, l.mint, wallet, side, str(b.amount, 24), Number(b.slippage) || 5);
           const message = Transaction.from(Buffer.from(out.tx, "base64")).serializeMessage().toString("base64");
-          pending.set(key, { message, side, at: Date.now() });
-          for (const [k, v] of pending) if (Date.now() - v.at > TTL) pending.delete(k);
+          remember(key, { message, side, at: Date.now() });
           return { status: 200, body: out };
         }
-        const p = pending.get(key);
-        if (!p || Date.now() - p.at > TTL) return { status: 400, body: { error: "This quote expired. Try again." } };
         let tx: Transaction;
         try {
           tx = Transaction.from(Buffer.from(str(b.tx, 4000), "base64"));
         } catch {
           return { status: 400, body: { error: "That is not a valid signed transaction." } };
         }
-        if (!matchesPrepared(p.message, tx)) return { status: 400, body: { error: "The signed trade is not the one this site prepared." } };
         if (!tx.verifySignatures()) return { status: 400, body: { error: "The trade is missing your signature." } };
-        pending.delete(key);
+        const p = take(key, tx);
+        if (!p) return { status: 400, body: { error: "The signed trade is not one this site prepared, or the quote expired. Try again." } };
         const signature = await d.rpc.sendRawTransaction(tx.serialize());
-        await confirmSignature(d.rpc, signature);
-        appendEvent(d.db, d.clock, { type: "trade", agentId, payload: { side: p.side, signature } });
-        // The chart moves at once (price only); volume and holders follow in the background.
-        await sampler.sample(l.mint, { priceOnly: true }).catch(() => false);
-        void sampler.sample(l.mint).catch(() => false);
-        return { status: 200, body: { signature } };
+        return settle(signature, async () => {
+          appendEvent(d.db, d.clock, { type: "trade", agentId, payload: { side: p.side, signature } });
+          // The chart moves at once (price only); volume and holders follow in the background.
+          await sampler.sample(l.mint, { priceOnly: true }).catch(() => false);
+          void sampler.sample(l.mint).catch(() => false);
+        });
       } catch (e) {
         if (e instanceof TradeError) return { status: 400, body: { error: e.message } };
         const m = e instanceof Error ? e.message : "";
@@ -131,7 +167,7 @@ export function createTradeRoutes(d: TradeDeps) {
         if (/slippage|6002|6003|TooMuchSol|TooLittleSol/i.test(m))
           return { status: 400, body: { error: "The price moved more than your slippage allows. Try again or raise slippage." } };
         if (/blockhash|expired/i.test(m)) return { status: 400, body: { error: "The trade expired before it was sent. Try again." } };
-        return { status: 502, body: { error: "The network call failed. Try again in a moment." } };
+        return { status: 502, body: { error: "The network call failed before anything was sent. Try again in a moment." } };
       }
     },
 

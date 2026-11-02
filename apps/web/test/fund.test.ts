@@ -7,7 +7,7 @@ import { agentWalletAddress, createAgentWallet } from "@devagent/launch";
 import { createTradeRoutes } from "../src/trade-routes";
 
 // Funding moves the user's SOL, so the server must only ever relay the exact transfer it built.
-function setup() {
+function setup(status: () => unknown = () => ({ confirmationStatus: "confirmed", err: null })) {
   const clock = new FakeClock(Date.UTC(2026, 9, 29));
   const db = openDb(":memory:");
   migrate(db, clock);
@@ -18,7 +18,7 @@ function setup() {
   const rpc = {
     getLatestBlockhash: async () => ({ blockhash: Keypair.generate().publicKey.toBase58(), lastValidBlockHeight: 1 }),
     sendRawTransaction: async (raw: Buffer) => (sent.push(raw), "sig1"),
-    getSignatureStatuses: async () => ({ value: [{ confirmationStatus: "confirmed", err: null }] }),
+    getSignatureStatuses: async () => ({ value: [status()] }),
   } as unknown as Connection;
   return { routes: createTradeRoutes({ db, clock, rpc }), agentId, to: agentWalletAddress(db, agentId)!, sent };
 }
@@ -62,5 +62,55 @@ describe("fund an agent", () => {
     const wallet = Keypair.generate().publicKey.toBase58();
     for (const sol of [0, 0.0001, 101, -1, "abc"])
       expect((await routes.post("/api/fund/prepare", { agentId, wallet, sol })).status).toBe(400);
+  });
+
+  it("relays a prepared transfer once only, even if submitted twice", async () => {
+    const { routes, agentId, sent } = setup();
+    const user = Keypair.generate();
+    const wallet = user.publicKey.toBase58();
+    const prep = (await routes.post("/api/fund/prepare", { agentId, wallet, sol: 0.1 })).body as { tx: string };
+    const tx = Transaction.from(Buffer.from(prep.tx, "base64"));
+    tx.sign(user);
+    const raw = tx.serialize().toString("base64");
+    expect((await routes.post("/api/fund/submit", { agentId, wallet, tx: raw })).status).toBe(200);
+    expect((await routes.post("/api/fund/submit", { agentId, wallet, tx: raw })).status).toBe(400);
+    expect(sent).toHaveLength(1);
+  });
+
+  it("after broadcasting, a failed confirmation check returns the signature as pending, never 'try again'", async () => {
+    const { routes, agentId, sent } = setup(() => {
+      throw new Error("fetch failed");
+    });
+    const user = Keypair.generate();
+    const wallet = user.publicKey.toBase58();
+    const prep = (await routes.post("/api/fund/prepare", { agentId, wallet, sol: 0.1 })).body as { tx: string };
+    const tx = Transaction.from(Buffer.from(prep.tx, "base64"));
+    tx.sign(user);
+    const r = await routes.post("/api/fund/submit", { agentId, wallet, tx: tx.serialize().toString("base64") });
+    expect(r).toMatchObject({ status: 202, body: { signature: "sig1", pending: true } });
+    expect(sent).toHaveLength(1);
+  });
+
+  it("an on-chain rejection is reported as safe to retry", async () => {
+    const { routes, agentId } = setup(() => ({ confirmationStatus: "confirmed", err: { InstructionError: [0, "x"] } }));
+    const user = Keypair.generate();
+    const wallet = user.publicKey.toBase58();
+    const prep = (await routes.post("/api/fund/prepare", { agentId, wallet, sol: 0.1 })).body as { tx: string };
+    const tx = Transaction.from(Buffer.from(prep.tx, "base64"));
+    tx.sign(user);
+    const r = await routes.post("/api/fund/submit", { agentId, wallet, tx: tx.serialize().toString("base64") });
+    expect(r).toMatchObject({ status: 400, body: { signature: "sig1" } });
+  });
+
+  it("keeps a quote and a later prepare both valid, so signing either one works", async () => {
+    const { routes, agentId, sent } = setup();
+    const user = Keypair.generate();
+    const wallet = user.publicKey.toBase58();
+    const first = (await routes.post("/api/fund/prepare", { agentId, wallet, sol: 0.1 })).body as { tx: string };
+    await routes.post("/api/fund/prepare", { agentId, wallet, sol: 0.2 });
+    const tx = Transaction.from(Buffer.from(first.tx, "base64"));
+    tx.sign(user);
+    expect((await routes.post("/api/fund/submit", { agentId, wallet, tx: tx.serialize().toString("base64") })).status).toBe(200);
+    expect(sent).toHaveLength(1);
   });
 });

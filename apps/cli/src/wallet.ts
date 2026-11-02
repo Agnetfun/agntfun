@@ -21,8 +21,8 @@ import {
   PublicKey,
   SystemProgram,
   Transaction,
-  sendAndConfirmTransaction,
 } from "@solana/web3.js";
+import { base58Encode } from "@devagent/community";
 
 // Operator commands for agent wallets.
 //   wallet list                       every agent wallet with its balance
@@ -93,9 +93,18 @@ try {
       const tx = new Transaction().add(
         SystemProgram.transfer({ fromPubkey: signer.publicKey, toPubkey: new PublicKey(to ?? ""), lamports }),
       );
-      const sig = await sendAndConfirmTransaction(rpc, tx, [signer]);
+      // Record the outflow before broadcasting, so a crash or timeout after the send can never leave money moved
+      // but uncounted against the daily cap. A send that then fails keeps counting: the cap errs on the safe side.
+      const { blockhash, lastValidBlockHeight } = await rpc.getLatestBlockhash("confirmed");
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = signer.publicKey;
+      tx.sign(signer);
+      const sig = base58Encode(tx.signature!);
       recordOutflow(app.db, systemClock, id, to ?? "", lamports, op, sig);
-      console.log(`sent: ${sig}`);
+      await rpc.sendRawTransaction(tx.serialize());
+      console.log(`sent: ${sig} (confirming…)`);
+      await rpc.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
+      console.log(`confirmed: ${sig}`);
     } finally {
       signer.secretKey.fill(0);
     }

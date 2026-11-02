@@ -60,7 +60,20 @@
     $("scr-tree").replaceChildren(...files.values());
   }
 
-  const wait = (ms) => new Promise((r) => (typing = setTimeout(r, instant || reduce ? 0 : ms)));
+  // Each reset starts a new generation: the pending wait resolves at once and the old playback stops drawing, so
+  // pump() never hangs on a cleared timer and two playbacks never interleave.
+  let gen = 0;
+  let wake = null;
+  class Stale extends Error {}
+  const wait = (ms) => {
+    const mine = gen;
+    return new Promise((r) => {
+      wake = r;
+      typing = setTimeout(r, instant || reduce ? 0 : ms);
+    }).then(() => {
+      if (mine !== gen) throw new Stale();
+    });
+  };
 
   async function typeFile(path, content) {
     if (instant || reduce) return showCode(path, content, false);
@@ -120,16 +133,27 @@
   async function pump() {
     if (playing) return;
     playing = true;
-    while (queue.length) {
-      instant = instant || queue.length > 25; // far behind: catch up without animation
-      await play(queue.shift());
+    let stale = false;
+    try {
+      while (queue.length) {
+        instant = instant || queue.length > 25; // far behind: catch up without animation
+        await play(queue.shift());
+      }
+    } catch (e) {
+      if (!(e instanceof Stale)) throw e;
+      stale = true; // a reset happened: it already chose the new session's mode, keep it
+    } finally {
+      if (!stale) instant = false;
+      playing = false;
     }
-    instant = false;
-    playing = false;
+    if (queue.length) pump(); // frames that arrived after a reset
   }
 
   function reset() {
+    gen++;
     clearTimeout(typing);
+    if (wake) wake();
+    wake = null;
     queue = [];
     files = new Map();
     lastSeq = 0;

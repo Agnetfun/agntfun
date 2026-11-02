@@ -178,14 +178,16 @@ export function createWebServer(d: WebDeps): { server: Server; close(): void; st
   const notFound = (req: IncomingMessage, res: ServerResponse) =>
     send(req, res, 404, pages.get("404")!);
 
+  // Behind a proxy the leftmost X-Forwarded-For entry is whatever the client sent, so it cannot key a rate limit.
+  // Use Cloudflare's own header when present, else the entry our proxy appended (the rightmost one).
+  const forwardedIp = (req: IncomingMessage) => {
+    const cf = req.headers["cf-connecting-ip"];
+    if (typeof cf === "string" && cf.trim()) return cf.trim();
+    const xff = String(req.headers["x-forwarded-for"] ?? "").split(",");
+    return xff[xff.length - 1]?.trim() ?? "";
+  };
   const clientKey = (req: IncomingMessage) =>
-    (d.trustProxy
-      ? String(req.headers["x-forwarded-for"] ?? "")
-          .split(",")[0]
-          ?.trim()
-      : "") ||
-    req.socket.remoteAddress ||
-    "unknown";
+    (d.trustProxy ? forwardedIp(req) : "") || req.socket.remoteAddress || "unknown";
 
   const clock = d.clock ?? systemClock;
   const buckets = new Map<string, { n: number; reset: number }>();
@@ -386,20 +388,38 @@ export function createWebServer(d: WebDeps): { server: Server; close(): void; st
   const broadcast = (data: string) => {
     for (const s of streams) s.write(`event: change\ndata: ${data}\n\n`);
   };
-  const poll = setInterval(() => {
-    const v = version(d.db);
-    if (v !== last) {
-      last = v;
-      broadcast(v);
+  // A throw inside a timer would crash the whole process (a busy database, a closed stream); log and carry on.
+  const safely = (name: string, f: () => void) => () => {
+    try {
+      f();
+    } catch (e) {
+      console.error(`web: ${name} failed:`, e instanceof Error ? e.message : e);
     }
-  }, d.pollMs ?? 2000);
-  const beat = setInterval(() => {
-    for (const s of streams) s.write(": keepalive\n\n");
-  }, 15_000);
-  const sweep = setInterval(() => {
-    const now = Date.now();
-    for (const [k, v] of hits) if (v.reset < now) hits.delete(k);
-  }, 30_000);
+  };
+  const poll = setInterval(
+    safely("change poll", () => {
+      const v = version(d.db);
+      if (v !== last) {
+        last = v;
+        broadcast(v);
+      }
+    }),
+    d.pollMs ?? 2000,
+  );
+  const beat = setInterval(
+    safely("keepalive", () => {
+      for (const s of streams) s.write(": keepalive\n\n");
+    }),
+    15_000,
+  );
+  const sweep = setInterval(
+    safely("sweep", () => {
+      const now = Date.now();
+      for (const [k, v] of hits) if (v.reset < now) hits.delete(k);
+      for (const [k, v] of buckets) if (v.reset < now) buckets.delete(k);
+    }),
+    30_000,
+  );
   for (const t of [poll, beat, sweep]) t.unref();
 
   const server = createServer((req, res) => {

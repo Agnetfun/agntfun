@@ -38,16 +38,23 @@ const agentId = () => {
 const rpcUrl = () => appRpcUrl(app);
 const request = (id: string): LaunchRequest => {
   const a = getAgent(app.db, id)!;
+  // Same defaults as a launch from the site: the stored ticker and this site's metadata URL (written into the coin
+  // forever, so it must be the real public address).
+  const row = app.db.prepare("SELECT ticker FROM agents WHERE id=?").get(id) as { ticker: string | null } | undefined;
+  const base = (process.env.PUBLIC_URL ?? "").replace(/\/+$/, "");
+  const uri = rest.includes("--uri") ? flag("uri") : base ? `${base}/meta/${id}.json` : flag("uri");
   return {
     name: flag("name", a.name).slice(0, 32),
     symbol: flag(
       "symbol",
-      a.name
-        .replace(/[^A-Za-z0-9]/g, "")
-        .slice(0, 10)
-        .toUpperCase() || "AGENT",
-    ),
-    uri: flag("uri", "https://example.com/metadata.json"),
+      row?.ticker ||
+        a.name
+          .replace(/[^A-Za-z0-9]/g, "")
+          .slice(0, 10)
+          .toUpperCase() ||
+        "AGENT",
+    ).slice(0, 10),
+    uri,
     creator: flag("creator"),
     split: defaultSplit({
       agent_treasury: flag("treasury"),
