@@ -1,5 +1,5 @@
 import { ulid, type Clock } from "@devagent/core";
-import { appendEvent, getAgent, type Db } from "@devagent/db";
+import { appendEvent, getAgent, markTaskDone, type Db } from "@devagent/db";
 import type { GatewayClient } from "@devagent/gateway";
 import type { SessionResult } from "@devagent/runner";
 import type { Workspace } from "@devagent/sandbox";
@@ -65,6 +65,8 @@ export async function publishSession(d: PublishDeps, r: SessionResult): Promise<
       if (merge.allowed) {
         await d.workspace.mergeToMain();
         out.merged = true;
+        // Done means merged: only now does the task leave the queue.
+        if (r.taskId) markTaskDone(d.db, d.clock, r.taskId);
       }
     }
   }

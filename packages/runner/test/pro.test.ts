@@ -82,4 +82,23 @@ describe("pro coding mode", () => {
     const env = proEnv("sk-or-x", { PATH: "/bin", SEAL_PRIVATE_KEY: "s" }, "openrouter");
     expect(env).toEqual({ ANTHROPIC_BASE_URL: "https://openrouter.ai/api", ANTHROPIC_AUTH_TOKEN: "sk-or-x", ANTHROPIC_API_KEY: "", PATH: "/bin" });
   });
+
+  it("charges a session cut off before the final result for the tokens it used", async () => {
+    const clock = new FakeClock(1_700_000_000_000);
+    const db = openDb(":memory:");
+    migrate(db, clock);
+    const agentId = createAgent(db, clock, { name: "cut", model: "opus", lockedPrompt: "Build small tested modules." }).id;
+    upsertTask(db, clock, { agentId, source: "file", summary: "Add a slugify helper" });
+    const workspace = await LocalWorkspace.open(mkdtempSync(join(tmpdir(), "pro-cut-")));
+    async function* cut(): AsyncIterable<SDKMessage> {
+      for (let i = 0; i < 2; i++)
+        yield { type: "assistant", message: { usage: { input_tokens: 100_000, output_tokens: 10_000 } } } as unknown as SDKMessage;
+      throw new Error("stream dropped"); // no result message ever arrives
+    }
+    const r = await runSession({ db, clock, agentId, llm: cfg.llm, limits, workspace, coding: "pro", proQuery: cut });
+    // 200k input at $4/M + 20k output at $20/M = $0.80 + $0.40 = $1.20
+    expect(r.costCents).toBe(120);
+    expect(r.endReason).toBe("error");
+  });
 });
+

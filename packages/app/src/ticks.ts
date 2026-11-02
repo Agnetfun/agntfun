@@ -1,5 +1,5 @@
 import { systemClock, ulid } from "@devagent/core";
-import { collect, promoteTop, quorumFromEnv, rankQueue, triageAll } from "@devagent/community";
+import { collect, promoteTop, quorumFromEnv, rankQueue, recheckVotes, triageAll } from "@devagent/community";
 import { listAgents, pickTask, upsertTask } from "@devagent/db";
 import type { Adapters } from "@devagent/gateway";
 import {
@@ -13,9 +13,12 @@ import {
   backfillAgentWallets,
   openAgentSigner,
   SolUsd,
+  ChainBalances,
+  getLaunch,
+  type TokenRpc,
 } from "@devagent/launch";
 import { createProvider, triageScript, MockProvider } from "@devagent/llm";
-import { Connection } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 import type { Booted } from "./boot";
 
 export function rpcUrl(app: Booted, env: Record<string, string | undefined> = process.env): string {
@@ -33,6 +36,10 @@ export function rpcUrl(app: Booted, env: Record<string, string | undefined> = pr
  * With PROMOTE_UNVOTED_WHEN_IDLE=1 an agent with an empty task list takes its best accepted idea even without votes
  * (lets a coin-less local test run end to end; off by default for production).
  */
+// One connection for vote re-checks, made on first use; shaped as the token balance reader expects.
+let chainConn: Connection | undefined;
+const tokenRpc = (app: Booted) => (chainConn ??= new Connection(rpcUrl(app), "confirmed")) as unknown as TokenRpc;
+
 export async function communityTick(app: Booted, adapters: Adapters, env = process.env) {
   const llm =
     app.config.llm.mode === "mock"
@@ -54,7 +61,14 @@ export async function communityTick(app: Booted, adapters: Adapters, env = proce
       }
     }
     out.accepted += (await triageAll({ db: app.db, clock: systemClock, llm }, a.id)).accepted;
-    out.promoted += promoteTop(app.db, systemClock, a.id, 3, quorumFromEnv(env));
+    const quorum = quorumFromEnv(env);
+    // Re-check the votes behind ready ideas against current balances, so tokens moved to a new wallet count once.
+    const coin = getLaunch(app.db, a.id);
+    if (coin && coin.cluster !== "mock") {
+      const balances = new ChainBalances(tokenRpc(app), new PublicKey(coin.mint), (w) => new PublicKey(w));
+      await recheckVotes(app.db, a.id, quorum, balances).catch(() => 0);
+    }
+    out.promoted += promoteTop(app.db, systemClock, a.id, 3, quorum);
     if (env.PROMOTE_UNVOTED_WHEN_IDLE === "1" && !pickTask(app.db, a.id)) {
       const top = rankQueue(app.db, a.id).find(
         (r) => (app.db.prepare("SELECT status FROM suggestions WHERE id=?").get(r.id) as { status: string }).status === "accepted",
@@ -112,7 +126,11 @@ export function makeChainTick(app: Booted, env = process.env) {
   return async () => {
     await solUsd.refresh().catch(() => 0);
     const out = { wallets: 0, booked: 0, feePayouts: 0, buyback: "" };
-    if (buyback && Date.now() - lastBuyback >= buybackEveryMs) {
+    // The kill switch stops money leaving: a global halt skips the buyback and every fee payout, an agent's own
+    // halt skips its payouts. Reading inflows below only books what arrived, so it keeps running.
+    const haltedAll = app.kill.isHalted();
+    if (haltedAll) app.log.warn("kill switch on: buyback and fee payouts paused");
+    if (!haltedAll && buyback && Date.now() - lastBuyback >= buybackEveryMs) {
       lastBuyback = Date.now();
       try {
         const r = await buyback.run();
@@ -121,9 +139,9 @@ export function makeChainTick(app: Booted, env = process.env) {
         app.log.warn({ err: (e as Error).message }, "buyback failed");
       }
     }
-    if (fees)
+    if (fees && !haltedAll)
       try {
-        out.feePayouts = (await fees.runAll(app.config.solanaCluster)).paid;
+        out.feePayouts = (await fees.runAll(app.config.solanaCluster, (id) => app.kill.isHalted(id))).paid;
       } catch (e) {
         app.log.warn({ err: (e as Error).message }, "fee payout failed");
       }

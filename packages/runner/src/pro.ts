@@ -8,6 +8,7 @@ import {
   type SDKMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import type { SessionLimits } from "@devagent/core";
+import { PRICES, costMicroUsd } from "@devagent/llm";
 import type { Workspace } from "@devagent/sandbox";
 import { PRO_TOOLS, TEST_TOOL, checkToolCall } from "./pro-guard";
 import type { LiveScreen } from "./live";
@@ -139,9 +140,23 @@ export async function runPro(a: ProRunArgs): Promise<ProRunResult> {
   };
 
   const out: ProRunResult = { endReason, summary: "", costMicroUsd: 0, tokensIn: 0, tokensOut: 0, turns: 0, durationMs: 0 };
+  // Running usage from each assistant message, so a session stopped before the SDK's final result (time cap, kill
+  // switch, a stream error) is still charged for what the model used, not for nothing.
+  let seenIn = 0;
+  let seenOut = 0;
+  let gotResult = false;
   try {
     for await (const m of (a.queryFn ?? query)({ prompt: a.prompt, options })) {
+      if (m.type === "assistant") {
+        const u = (m as unknown as { message?: { usage?: Record<string, number | null | undefined> } }).message?.usage;
+        if (u) {
+          seenIn += (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0);
+          seenOut += u.output_tokens ?? 0;
+        }
+        continue;
+      }
       if (m.type !== "result") continue;
+      gotResult = true;
       out.costMicroUsd = Math.round(m.total_cost_usd * 1_000_000);
       out.tokensIn = m.usage.input_tokens + (m.usage.cache_read_input_tokens ?? 0) + (m.usage.cache_creation_input_tokens ?? 0);
       out.tokensOut = m.usage.output_tokens;
@@ -160,6 +175,13 @@ export async function runPro(a: ProRunArgs): Promise<ProRunResult> {
   } finally {
     clearInterval(killWatch);
     clearTimeout(timeCap);
+  }
+  if (!gotResult) {
+    // No final result: charge the running usage at the model's prices (input counted at the full input price,
+    // which can only over-, never under-charge cache reads).
+    out.tokensIn = seenIn;
+    out.tokensOut = seenOut;
+    out.costMicroUsd = costMicroUsd(PRICES.opus, seenIn, seenOut);
   }
   return { ...out, endReason };
 }

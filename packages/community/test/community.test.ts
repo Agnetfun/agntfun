@@ -13,6 +13,7 @@ import {
   preFilter,
   promoteTop,
   quorumFromEnv,
+  recheckVotes,
   rankQueue,
   triageAll,
   validateTriage,
@@ -315,6 +316,20 @@ describe("pipeline", () => {
     await vote(whale, 1_000); // now 3 holders and over 1% of supply
     expect(promoteTop(db, clock, agent, 5, q)).toBe(1);
     expect(pickTask(db, agent)!.summary).toBe("Add dark mode to the settings page");
+  });
+
+  it("counts tokens moved between wallets once: votes are re-checked against current balances", async () => {
+    const q = { minVoters: 3, minWeight: 10_000_000 };
+    const sid = await accepted("Add an export button", "mv");
+    const bal = new MockBalances({});
+    // One holder: votes from A, moves the 20M tokens to B, votes, moves them to C, votes.
+    for (const w of [wallet(), wallet(), wallet()]) {
+      bal.balances = { [w.address]: 20_000_000 }; // only the current wallet holds the tokens
+      await castVote(db, clock, bal, { agentId: agent, suggestionId: sid, wallet: w.address, signature: signFor(w.key, agent, sid) });
+    }
+    // Recorded weights look like 3 holders with 60M; the re-check sees only C still holds anything.
+    expect(await recheckVotes(db, agent, q, bal)).toBe(2);
+    expect(promoteTop(db, clock, agent, 5, q)).toBe(0);
   });
 
   it("judges ideas against the creator's locked brief", async () => {

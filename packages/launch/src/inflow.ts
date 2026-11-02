@@ -1,5 +1,6 @@
 import type { Db } from "@devagent/db";
 import type { Treasury } from "@devagent/treasury";
+import { signaturesSince } from "./signatures";
 import { PublicKey, type Connection } from "@solana/web3.js";
 import { listAgentWallets } from "./wallets";
 
@@ -41,11 +42,8 @@ export class InflowWatcher {
   async poll(agentId: string, address: string): Promise<{ booked: number; lamports: number }> {
     const cur = this.db.prepare("SELECT last_signature s FROM wallet_cursor WHERE address=?").get(address) as
       { s: string } | undefined;
-    const sigs = await this.rpc.getSignaturesForAddress(
-      new PublicKey(address),
-      { until: cur?.s, limit: this.opts.pageSize },
-      "confirmed",
-    );
+    // Every new signature since the cursor (paged), not just the newest page: nothing older is skipped.
+    const sigs = await signaturesSince(this.rpc, new PublicKey(address), cur?.s, this.opts.pageSize);
     let booked = 0;
     let lamports = 0;
     // Newest first from the RPC; book oldest first so the ledger reads in order.
@@ -61,10 +59,11 @@ export class InflowWatcher {
       if (i < 0) continue;
       const delta = (tx.meta.postBalances[i] ?? 0) - (tx.meta.preBalances[i] ?? 0);
       if (delta <= 0) continue;
-      if (this.treasury.recordCreatorFee(agentId, delta, s.signature)) {
+      // Keyed by signature AND receiving wallet: one transaction that funds two agents books both.
+      if (this.treasury.recordCreatorFee(agentId, delta, `${s.signature}:${address}`)) {
         const perSol = typeof this.opts.solUsdCents === "function" ? this.opts.solUsdCents() : this.opts.solUsdCents;
         const cents = Math.floor((delta / 1e9) * perSol);
-        if (cents > 0) this.treasury.convertSolToUsd(agentId, delta, cents, `inflow:${s.signature}`);
+        if (cents > 0) this.treasury.convertSolToUsd(agentId, delta, cents, `inflow:${s.signature}:${address}`);
         booked++;
         lamports += delta;
       }

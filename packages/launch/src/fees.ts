@@ -78,7 +78,8 @@ export class FeeDistributor {
       .run(mint, this.clock.now(), waiting, can ? 1 : 0, paid ? this.clock.now() : null, paid ?? null);
   }
 
-  async runAll(cluster: string): Promise<{ checked: number; paid: number }> {
+  /** `isHalted` (the kill switch): a halted agent's fees are not touched until it is resumed. */
+  async runAll(cluster: string, isHalted: (agentId: string) => boolean = () => false): Promise<{ checked: number; paid: number }> {
     const due = this.db
       .prepare(
         `SELECT l.agent_id, l.mint FROM launches l LEFT JOIN fee_status f ON f.mint=l.mint
@@ -87,6 +88,7 @@ export class FeeDistributor {
       .all(cluster, this.clock.now() - this.opts.everySeconds * 1000) as { agent_id: string; mint: string }[];
     let paid = 0;
     for (const d of due) {
+      if (isHalted(d.agent_id)) continue;
       try {
         if (await this.run(d.agent_id, d.mint)) paid++;
       } catch {

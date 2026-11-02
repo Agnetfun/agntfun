@@ -136,12 +136,20 @@ export abstract class GitWorkspace implements Workspace {
   }
 
   protected async git(...args: string[]): Promise<string> {
+    return (await this.gitRaw(...args)).trim();
+  }
+
+  /**
+   * Untrimmed output, for diffs: a diff's last line can be a single-space context line (an empty source line), and
+   * trimming it off leaves a hunk git apply rejects as corrupt.
+   */
+  protected async gitRaw(...args: string[]): Promise<string> {
     const { stdout } = await run("git", ["-c", "core.hooksPath=/dev/null", ...args], {
       cwd: this.work,
       env: this.gitEnv(),
       maxBuffer: 8_000_000,
     });
-    return stdout.trim();
+    return stdout;
   }
 
   async readFile(path: string): Promise<string> {
@@ -203,11 +211,11 @@ export abstract class GitWorkspace implements Workspace {
   }
 
   async patchSinceMain(): Promise<string> {
-    return this.git("diff", "--no-color", "--no-ext-diff", "main", "HEAD");
+    return this.gitRaw("diff", "--no-color", "--no-ext-diff", "main", "HEAD");
   }
 
   async patchOfMain(): Promise<string> {
-    return this.git("diff", "--no-color", "--no-ext-diff", EMPTY_TREE, "main");
+    return this.gitRaw("diff", "--no-color", "--no-ext-diff", EMPTY_TREE, "main");
   }
 
   async mergeToMain(): Promise<void> {

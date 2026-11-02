@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { FakeClock, ulid } from "@devagent/core";
-import { createAgent, migrate, openDb, startSession, type Db } from "@devagent/db";
+import { createAgent, migrate, openDb, startSession, upsertTask, type Db } from "@devagent/db";
 import { ActionGateway, MockSocial, MockVcsHost } from "@devagent/gateway";
 import type { SessionResult } from "@devagent/runner";
 import type { Workspace } from "@devagent/sandbox";
@@ -126,6 +126,16 @@ describe("publishSession", () => {
     expect(soc.posts[0]!.text).toContain("github.com/o/r");
     expect(soc.posts[0]!.text).not.toMatch(/fixed everything/);
     expect(db.prepare("SELECT SUM(cost_cents) c FROM posts").get()).toEqual({ c: 20 });
+  });
+
+  it("marks the task done only after the merge, and leaves it open when the gateway refuses", async () => {
+    upsertTask(db, clock, { agentId: agent, source: "proposal", summary: "Add a parser" });
+    const taskId = (db.prepare("SELECT id FROM tasks").get() as { id: string }).id;
+    const status = () => (db.prepare("SELECT status FROM tasks WHERE id=?").get(taskId) as { status: string }).status;
+    await publishSession(deps(), session({ taskId, testsPassed: false })); // no merge without passing tests
+    expect(status()).toBe("open");
+    await publishSession(deps(), session({ taskId }));
+    expect(status()).toBe("done");
   });
 
   it("drops the link when the budget is small", async () => {

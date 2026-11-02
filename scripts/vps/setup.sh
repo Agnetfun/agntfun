@@ -18,7 +18,9 @@ fi
 
 APP_DIR=/opt/devagent
 ETC=/etc/devagent
-USER_NAME=devagent
+USER_NAME=devagent      # owns the code, runs the orchestrator (holds SEAL_PRIVATE_KEY, starts Docker sandboxes)
+WEB_USER=devagent-web   # runs the internet-facing website: no Docker, no private key, cannot read the orchestrator
+DATA_GROUP=devagent-data # the only thing both share: the database folder
 say() { printf '\n==> %s\n' "$*"; }
 
 say "System packages"
@@ -35,9 +37,15 @@ if ! node -v 2>/dev/null | grep -q '^v24\.'; then
 fi
 npm install -g pnpm@10.28.0
 
-say "User $USER_NAME"
+say "Users $USER_NAME and $WEB_USER"
+# Two users, so a compromise of the website cannot read the orchestrator's environment (SEAL_PRIVATE_KEY) through
+# /proc or reach Docker: a different uid cannot read another process's environ, and only the orchestrator is in docker.
+getent group "$DATA_GROUP" >/dev/null || groupadd "$DATA_GROUP"
 id "$USER_NAME" >/dev/null 2>&1 || useradd --create-home --shell /bin/bash "$USER_NAME"
-usermod -aG docker "$USER_NAME" # agents' code runs in Docker sandboxes started by the orchestrator
+id "$WEB_USER" >/dev/null 2>&1 || useradd --create-home --shell /usr/sbin/nologin "$WEB_USER"
+usermod -aG docker,"$DATA_GROUP" "$USER_NAME" # agents' code runs in Docker sandboxes started by the orchestrator
+usermod -aG "$DATA_GROUP" "$WEB_USER"
+gpasswd -d "$WEB_USER" docker >/dev/null 2>&1 || true # never in docker, even if added by hand earlier
 
 say "GitHub deploy key (read only access to $REPO)"
 KEY=/home/$USER_NAME/.ssh/id_ed25519
@@ -63,6 +71,10 @@ cd "$APP_DIR"
 sudo -u "$USER_NAME" pnpm install --frozen-lockfile
 sudo -u "$USER_NAME" pnpm --filter @devagent/web build:privy # Privy login bundle (generated, not in git)
 sudo -u "$USER_NAME" mkdir -p "$APP_DIR/data"
+# Shared database folder: both services read and write it; setgid keeps new files (WAL, uploads) in the group.
+chown "$USER_NAME:$DATA_GROUP" "$APP_DIR/data"
+chmod 2770 "$APP_DIR/data"
+find "$APP_DIR/data" -type f -exec chgrp "$DATA_GROUP" {} + -exec chmod g+rw {} +
 docker pull node:22-slim
 
 say "Settings in $ETC"
@@ -82,9 +94,9 @@ if [[ ! -f $ETC/app.env ]]; then
   sed -i "s|^SEAL_PRIVATE_KEY=.*|SEAL_PRIVATE_KEY=$PRIV|" "$ETC/orchestrator.env"
   echo "Generated seal keys. BACK UP $ETC/orchestrator.env OFF THIS SERVER: it unlocks every agent wallet."
 fi
-chown root:"$USER_NAME" "$ETC"/*.env
-chmod 640 "$ETC/app.env"
-chmod 600 "$ETC/orchestrator.env" # root only; systemd hands it to the orchestrator
+# Root only: systemd reads EnvironmentFile as root before dropping to the service user, so no app user can open them.
+chown root:root "$ETC"/*.env
+chmod 600 "$ETC"/*.env
 
 say "Services"
 cat > /etc/systemd/system/devagent-web.service <<EOF
@@ -94,13 +106,18 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-User=$USER_NAME
+User=$WEB_USER
+Group=$DATA_GROUP
+UMask=0007
 WorkingDirectory=$APP_DIR
 EnvironmentFile=$ETC/app.env
 ExecStart=/usr/bin/pnpm exec tsx apps/web/src/main.ts
 Restart=always
 RestartSec=5
 NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
 
 [Install]
 WantedBy=multi-user.target
@@ -114,6 +131,8 @@ Requires=docker.service
 
 [Service]
 User=$USER_NAME
+Group=$DATA_GROUP
+UMask=0007
 WorkingDirectory=$APP_DIR
 EnvironmentFile=$ETC/app.env
 EnvironmentFile=$ETC/orchestrator.env

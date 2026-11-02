@@ -93,6 +93,7 @@ export class ActionGateway implements GatewayClient {
     // The starter files of a new remote pass the same path, symlink and secret checks as the session's own patch.
     if (i.base) {
       const b = inspectPatch(i.base);
+      if (b.unparsed) return { stage: "allowlist", reason: "unusual file path in starter files" };
       if (b.symlink) return { stage: "allowlist", reason: "symlinks not allowed" };
       for (const f of b.files) {
         const bad = badPath(f);
@@ -101,6 +102,7 @@ export class ActionGateway implements GatewayClient {
       if (scanText(i.base).length) return { stage: "secrets", reason: "secret-like content" };
     }
     const info = inspectPatch(i.patch);
+    if (info.unparsed) return { stage: "allowlist", reason: "unusual file path in patch (quoted or unreadable header)" };
     for (const f of info.files) {
       const bad = badPath(f);
       if (bad) return { stage: "allowlist", reason: bad };

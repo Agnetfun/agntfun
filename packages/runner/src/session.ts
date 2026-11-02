@@ -14,7 +14,6 @@ import {
   endSession,
   getAgent,
   insertLlmCall,
-  markTaskDone,
   pickTask,
   setAgentState,
   startSession,
@@ -264,11 +263,8 @@ export async function runSession(a: RunSessionArgs): Promise<SessionResult> {
   try {
     const wip = await workspace.commitAll(`wip: session ended (${endReason})`);
     if (wip) commits.push(wip);
-    // The merge into main is the gateway's job (it needs a passing test report). Here we only
-    // record that the task is complete.
-    if (endReason === "finished" && testsPassed === true && commits.length > 0) {
-      markTaskDone(db, clock, task.id);
-    }
+    // The task is marked done by the publisher, and only once its work is merged into main: a push or merge the
+    // gateway denies (size, rate limit, secret scan) leaves the task open, so the work is not silently dropped.
     headSha = await workspace.headSha();
   } catch (e) {
     emit("session.cleanup_error", { error: (e as Error).message });

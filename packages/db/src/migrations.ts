@@ -394,6 +394,16 @@ CREATE TABLE trade_cursor (
 );
 `;
 
+// Vote re-checks: the balance each voter still holds, read before promotion. Votes stay append-only; the ranking
+// uses the lower of the recorded weight and this, so tokens moved to a new wallet count once.
+const v19 = `
+CREATE TABLE vote_checks (
+  vote_id TEXT PRIMARY KEY REFERENCES votes(id),
+  weight REAL NOT NULL,
+  checked_at INTEGER NOT NULL
+);
+`;
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, name: "schema_v0", sql: v1 },
   { version: 2, name: "phase1_llm_tasks", sql: v2 },
@@ -413,4 +423,5 @@ export const MIGRATIONS: Migration[] = [
   { version: 16, name: "triage_retries", sql: v16 },
   { version: 17, name: "attachments", sql: v17 },
   { version: 18, name: "trade_volume", sql: v18 },
+  { version: 19, name: "vote_checks", sql: v19 },
 ];

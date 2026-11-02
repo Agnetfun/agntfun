@@ -1,5 +1,6 @@
 import type { Db } from "@devagent/db";
 import type { Connection, PublicKey } from "@solana/web3.js";
+import { signaturesSince } from "./signatures";
 
 /**
  * On-chain trading volume for a coin, so 24h volume and the chart's volume bars count every trade, including ones
@@ -19,7 +20,8 @@ export async function collectVolume(db: Db, rpc: Partial<VolumeRpc>, mint: strin
   const cursor = db.prepare("SELECT last_signature s FROM trade_cursor WHERE mint=? AND venue=?").get(mint, venue.kind) as
     | { s: string }
     | undefined;
-  const sigs = await rpc.getSignaturesForAddress(venue.address, { until: cursor?.s, limit: PER_ROUND }, "confirmed");
+  // Every new trade since the cursor (paged), not just the newest page: a busy coin's older trades are not skipped.
+  const sigs = await signaturesSince(rpc as Pick<Connection, "getSignaturesForAddress">, venue.address, cursor?.s, PER_ROUND);
   if (!sigs.length) return 0;
   let added = 0;
   // Oldest first, so a partial round still moves the cursor forward in order.

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { FakeClock, loadConfig } from "@devagent/core";
-import { createAgent, migrate, openDb, upsertTask, type Db } from "@devagent/db";
+import { createAgent, markTaskDone, migrate, openDb, upsertTask, type Db } from "@devagent/db";
 import { MockProvider, loopingScript } from "@devagent/llm";
 import { LocalWorkspace } from "@devagent/sandbox";
 import { parseAction, runSession } from "../src";
@@ -63,7 +63,8 @@ describe("runSession", () => {
     expect(r).toMatchObject({ endReason: "finished", testsPassed: true });
     expect(r.commits).toHaveLength(1);
     expect(await w.readFile("src/add-sum-helper.js")).toContain("Add sum helper");
-    expect(rows("SELECT status FROM tasks")[0]!.status).toBe("done");
+    // Done means merged: the publisher marks the task after the gateway merge, so a session alone leaves it open.
+    expect(rows("SELECT status FROM tasks")[0]!.status).toBe("open");
     const s = rows("SELECT * FROM sessions")[0]!;
     expect(s.end_reason).toBe("finished");
     expect(Number(s.cost_cents)).toBeGreaterThanOrEqual(1);
@@ -177,7 +178,8 @@ describe("runSession", () => {
 describe("agent memory in a real session", () => {
   it("the second session's first message remembers the first session", async () => {
     const w = await ws();
-    await runSession({ db, clock, agentId, llm: cfg.llm, limits, workspace: w });
+    const first = await runSession({ db, clock, agentId, llm: cfg.llm, limits, workspace: w });
+    markTaskDone(db, clock, first.taskId!); // as the publisher does once the work is merged
     clock.advance(60_000);
     upsertTask(db, clock, { agentId, source: "file", summary: "Add product helper" });
     const seen: string[] = [];

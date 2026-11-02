@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { systemClock } from "@devagent/core";
+import { appendEvent } from "@devagent/db";
 import type { GatewayClient } from "@devagent/gateway";
 import { maxPostCentsFromEnv, publishSession } from "@devagent/publisher";
 import { runSession } from "@devagent/runner";
@@ -42,11 +43,22 @@ export function makeRunOnce(app: Booted, gateway: GatewayClient, mode: SandboxMo
       isHalted: () => app.kill.isHalted(agentId),
       coding: process.env.CODING_MODE === "pro" ? "pro" : "basic",
     });
-    const published = await publishSession(
-      { db: app.db, clock: systemClock, gateway, workspace, maxPostCents: maxPostCentsFromEnv() },
-      r,
-    );
-    return { sessionId: r.sessionId, llmCents: r.costCents, postCents: published.costCents };
+    // The session already spent model money: it is booked even when publishing fails (a huge diff, a failed merge,
+    // a database error), or a failing publish would let an agent run without being charged.
+    let postCents = 0;
+    try {
+      postCents = (
+        await publishSession({ db: app.db, clock: systemClock, gateway, workspace, maxPostCents: maxPostCentsFromEnv() }, r)
+      ).costCents;
+    } catch (e) {
+      appendEvent(app.db, systemClock, {
+        type: "session.publish_failed",
+        agentId,
+        sessionId: r.sessionId ?? undefined,
+        payload: { error: e instanceof Error ? e.message.slice(0, 300) : "failed" },
+      });
+    }
+    return { sessionId: r.sessionId, llmCents: r.costCents, postCents };
   };
 }
 
